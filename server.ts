@@ -308,6 +308,67 @@ Rules:
   });
 
   // ----------------------------------------------------------
+  // WHAT IF? SCENARIO PLANNER
+  // ----------------------------------------------------------
+  app.post("/api/whatif", async (req, res) => {
+    try {
+      const { scenario, currentTasks, currentSchedule, currentTime } = req.body;
+
+      const response = await ai.models.generateContent({
+        model: MODEL,
+        contents: `You are Last-Minute Life Saver's scenario planner.
+Current time: ${currentTime}
+Current tasks: ${JSON.stringify(currentTasks, null, 2)}
+Current schedule: ${JSON.stringify(currentSchedule, null, 2)}
+
+User scenario: "${scenario}"
+
+Analyze this hypothetical scenario and return:
+1. A concise, direct analysis (2-3 sentences) of the impact — be specific about which deadlines are affected, what risks emerge, or what gets easier
+2. Estimated minutes saved (0 if the scenario doesn't save time)
+3. A hypothetical modified schedule showing what the plan would look like
+
+Rules:
+- Analysis should be honest, not sugar-coated
+- Keep task IDs the same
+- This is HYPOTHETICAL — make clear it hasn't been applied yet`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              analysis: { type: Type.STRING },
+              timeSaved: { type: Type.NUMBER, description: "Minutes saved by this scenario, 0 if none" },
+              schedule: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    id: { type: Type.STRING },
+                    title: { type: Type.STRING },
+                    startTime: { type: Type.STRING },
+                    endTime: { type: Type.STRING },
+                    taskId: { type: Type.STRING },
+                    type: { type: Type.STRING },
+                  },
+                  required: ["id", "title", "startTime", "endTime", "type"],
+                },
+              },
+            },
+            required: ["analysis", "timeSaved", "schedule"],
+          },
+        },
+      });
+
+      const data = JSON.parse(response.text || "{}");
+      res.json(data);
+    } catch (e: any) {
+      const status = e?.status === 429 ? 429 : 500;
+      res.status(status).json({ error: e.message || "Scenario analysis failed" });
+    }
+  });
+
+  // ----------------------------------------------------------
   // PROACTIVE CHECK-IN (timer-based agent nudge)
   // ----------------------------------------------------------
   app.post("/api/checkin", async (req, res) => {

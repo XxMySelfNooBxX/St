@@ -7,10 +7,14 @@ import { StatsBar } from './components/StatsBar';
 import { ParticleField } from './components/ParticleField';
 import { FocusMode } from './components/FocusMode';
 import { CommandBar } from './components/CommandBar';
+import { BurndownChart } from './components/BurndownChart';
+import { WhatIf } from './components/WhatIf';
 import { Message, Task, ExecutionBlock } from './types';
 
 // Lazy load the 3D chart — it's heavy, only loads when user requests it
 const PanicChart3D = lazy(() => import('./components/PanicChart3D').then(m => ({ default: m.PanicChart3D })));
+
+const SESSION_KEY = 'lmls-session-v2';
 
 // ─── Demo Data ──────────────────────────────────────────────────────────────
 const DEMO_TASKS: Task[] = [
@@ -70,6 +74,47 @@ export default function App() {
   const [focusBlock, setFocusBlock] = useState<{ block: ExecutionBlock; task?: Task } | null>(null);
   const [show3D, setShow3D] = useState(false);
   const [isCommandProcessing, setIsCommandProcessing] = useState(false);
+  const [completionHistory, setCompletionHistory] = useState<{ remaining: number; timestamp: number }[]>([]);
+  const [streak, setStreak] = useState(0);
+  const [sessionStart] = useState(() => Date.now());
+
+  // ─── Session Persistence ─────────────────────────────────────────────────
+  // Load from localStorage on first mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(SESSION_KEY);
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.tasks?.length > 0 && data.tasks.some((t: Task) => t.status !== 'completed')) {
+          setTasks(data.tasks);
+          setSchedule(data.schedule || []);
+          setCompletionHistory(data.completionHistory || []);
+          const pending = data.tasks.filter((t: Task) => t.status !== 'completed').length;
+          const done = data.tasks.filter((t: Task) => t.status === 'completed').length;
+          setMessages([
+            { id: 'sys-1', role: 'assistant', content: 'I am your Last-Minute Life Saver. Brain dump everything you need to do, and I will instantly triage your tasks and generate a realistic execution timeline.' },
+            {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: `👋 Welcome back! You have **${pending}** tasks still pending.${done > 0 ? ` You completed ${done} last session — great progress.` : ''} Ready to keep going?`,
+            },
+          ]);
+        }
+      }
+    } catch { /* ignore corrupt data */ }
+  }, []);
+
+  // Save session to localStorage whenever tasks or schedule change
+  useEffect(() => {
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({
+        tasks,
+        schedule,
+        completionHistory,
+        savedAt: Date.now(),
+      }));
+    } catch { /* quota exceeded — ignore */ }
+  }, [tasks, schedule, completionHistory]);
 
   // ─── Proactive check-in timer (every 25 mins) ───────────────────────────
   const checkInTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -149,13 +194,21 @@ export default function App() {
     debouncedFetchStress(text);
   }, [debouncedFetchStress]);
 
-  // ─── Task completion → auto re-triage ────────────────────────────────────
+  // ─── Task completion → auto re-triage ───────────────────────────────────────────
   const handleTaskComplete = useCallback(async (taskId: string) => {
     // Optimistically mark as done
     const updatedTasks = tasks.map(t =>
       t.id === taskId ? { ...t, status: 'completed' as const } : t
     );
     setTasks(updatedTasks);
+
+    // Track completion in burndown history
+    const newRemaining = updatedTasks.filter(t => t.status !== 'completed').length;
+    setCompletionHistory(prev => [
+      ...prev,
+      { remaining: newRemaining, timestamp: Date.now() },
+    ]);
+    setStreak(s => s + 1);
 
     const completedTask = tasks.find(t => t.id === taskId);
     const remaining = updatedTasks.filter(t => t.status !== 'completed');
@@ -368,7 +421,21 @@ export default function App() {
                   Real-time triage and autonomous timeline generation to prevent procrastination and minimize cognitive load.
                 </p>
               </div>
-              <CommandBar onCommand={handleCommand} isProcessing={isCommandProcessing} />
+              <div className="flex items-center gap-2 shrink-0">
+                <WhatIf
+                  tasks={tasks}
+                  schedule={schedule}
+                  onApply={(newSchedule, confirmation) => {
+                    setSchedule(newSchedule);
+                    setMessages(prev => [...prev, {
+                      id: crypto.randomUUID(),
+                      role: 'assistant',
+                      content: `⚡ ${confirmation}`,
+                    }]);
+                  }}
+                />
+                <CommandBar onCommand={handleCommand} isProcessing={isCommandProcessing} />
+              </div>
             </div>
           </motion.header>
 
@@ -414,6 +481,20 @@ export default function App() {
             transition={{ duration: 0.5, delay: 0.45 }}
           >
             <StatsBar tasks={tasks} schedule={schedule} />
+            {/* Burndown chart — only shows after first completion */}
+            {completionHistory.length >= 2 && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="mt-3 overflow-hidden"
+              >
+                <BurndownChart
+                  history={[{ remaining: tasks.length, timestamp: sessionStart }, ...completionHistory]}
+                  total={tasks.length}
+                  streak={streak}
+                />
+              </motion.div>
+            )}
           </motion.section>
 
           <motion.section
