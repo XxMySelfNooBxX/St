@@ -404,7 +404,7 @@ export default function App() {
       >
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[50%] bg-indigo-500/10 blur-[120px] rounded-full pointer-events-none -z-10" />
 
-        <div className="p-6 md:p-8 lg:p-10 max-w-[1200px] mx-auto space-y-8 flex flex-col h-full">
+        <div className="p-6 md:p-8 lg:p-10 max-w-[1200px] mx-auto space-y-8 flex flex-col min-h-full">
 
           <motion.header
             className="mb-2 pt-2 shrink-0"
@@ -554,7 +554,7 @@ export default function App() {
           </motion.section>
 
           <motion.section
-            className="pt-2 flex-1 flex flex-col overflow-hidden"
+            className="pt-2 flex-1 flex flex-col min-h-[400px]"
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.65 }}
