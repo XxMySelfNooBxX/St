@@ -1,8 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { ChatInterface } from './components/ChatInterface';
 import { TaskTriageMatrix } from './components/TaskTriageMatrix';
 import { TimelineBoard } from './components/TimelineBoard';
 import { StatsBar } from './components/StatsBar';
+import { ParticleField } from './components/ParticleField';
 import { Message, Task, ExecutionBlock } from './types';
 
 // ─── Demo Data ──────────────────────────────────────────────────────────────
@@ -58,6 +60,8 @@ export default function App() {
   const [processingState, setProcessingState] = useState<string>('');
   const [agentLog, setAgentLog] = useState<string[]>([]);
   const [stressScore, setStressScore] = useState<number>(7);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
 
   // ─── Proactive check-in timer (every 25 mins) ───────────────────────────
   const checkInTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -241,6 +245,8 @@ export default function App() {
       setTasks(data.tasks || []);
       setSchedule(data.schedule || []);
       setAgentLog(data.agentLog || []);
+      setSuggestions(data.suggestions || []);
+      setDismissedSuggestions(new Set()); // reset on new brain dump
       setMessages(prev => [...prev, {
         id: crypto.randomUUID(),
         role: 'assistant',
@@ -273,39 +279,101 @@ export default function App() {
   return (
     <div className="flex flex-col md:flex-row h-screen bg-zinc-950 overflow-hidden font-sans text-zinc-100 selection:bg-indigo-500/30 selection:text-white">
 
-      {/* Left Panel: Chat */}
-      <div className="w-full md:w-[380px] shrink-0 h-[50vh] md:h-full flex flex-col z-20 border-r border-white/10">
-        <ChatInterface
-          messages={messages}
-          onSendMessage={handleSendMessage}
-          onInputChange={handleInputChange}
-          isProcessing={agentBusy}
-          processingState={agentStateLabel}
-          stressScore={stressScore}
-        />
-      </div>
+      {/* Left Panel: Chat + Particle Field */}
+      <motion.div
+        className="w-full md:w-[380px] shrink-0 h-[50vh] md:h-full flex flex-col z-20 border-r border-white/10 relative overflow-hidden"
+        initial={{ x: -40, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+      >
+        <ParticleField stressScore={stressScore} />
+        <div className="relative z-10 flex flex-col h-full">
+          <ChatInterface
+            messages={messages}
+            onSendMessage={handleSendMessage}
+            onInputChange={handleInputChange}
+            isProcessing={agentBusy}
+            processingState={agentStateLabel}
+            stressScore={stressScore}
+          />
+        </div>
+      </motion.div>
 
       {/* Right Panel: Dashboard */}
-      <div className="flex-1 h-[50vh] md:h-full overflow-y-auto relative scroll-smooth">
+      <motion.div
+        className="flex-1 h-[50vh] md:h-full overflow-y-auto relative scroll-smooth"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+      >
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[50%] bg-indigo-500/10 blur-[120px] rounded-full pointer-events-none -z-10" />
 
         <div className="p-6 md:p-8 lg:p-10 max-w-[1200px] mx-auto space-y-8 flex flex-col h-full">
 
-          <header className="mb-2 pt-2 shrink-0">
+          <motion.header
+            className="mb-2 pt-2 shrink-0"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
+          >
             <h1 className="text-3xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white to-zinc-400 mb-2 ml-1">
               Execution Dashboard
             </h1>
             <p className="text-zinc-500 font-medium ml-1 text-sm">
               Real-time triage and autonomous timeline generation to prevent procrastination and minimize cognitive load.
             </p>
-          </header>
+          </motion.header>
+
+          {/* Smart Suggestions */}
+          <AnimatePresence>
+            {suggestions.filter(s => !dismissedSuggestions.has(s)).length > 0 && (
+              <motion.section
+                key="suggestions"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.4 }}
+                className="shrink-0 overflow-hidden"
+              >
+                <div className="flex flex-wrap gap-2">
+                  {suggestions.filter(s => !dismissedSuggestions.has(s)).map((tip, i) => (
+                    <motion.div
+                      key={tip}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.85 }}
+                      transition={{ delay: i * 0.08 }}
+                      className="flex items-start gap-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-[11px] px-3 py-2 rounded-lg max-w-sm"
+                    >
+                      <span className="mt-0.5 shrink-0">💡</span>
+                      <span className="flex-1 leading-snug">{tip}</span>
+                      <button
+                        onClick={() => setDismissedSuggestions(prev => new Set([...prev, tip]))}
+                        className="text-indigo-500 hover:text-indigo-300 shrink-0 ml-1 text-xs font-bold"
+                      >✕</button>
+                    </motion.div>
+                  ))}
+                </div>
+              </motion.section>
+            )}
+          </AnimatePresence>
 
           {/* Session Stats Bar */}
-          <section className="shrink-0 animate-in fade-in duration-500">
+          <motion.section
+            className="shrink-0"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.45 }}
+          >
             <StatsBar tasks={tasks} schedule={schedule} />
-          </section>
+          </motion.section>
 
-          <section className="animate-in fade-in slide-in-from-bottom-4 duration-700 shrink-0">
+          <motion.section
+            className="animate-in fade-in shrink-0"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.55 }}
+          >
             <div className="flex items-center mb-4 ml-1">
               <h2 className="text-xs font-bold uppercase tracking-widest text-zinc-500">Task Triage Matrix</h2>
               {isReTriaging && (
@@ -313,16 +381,21 @@ export default function App() {
               )}
             </div>
             <TaskTriageMatrix tasks={tasks} onTaskComplete={handleTaskComplete} />
-          </section>
+          </motion.section>
 
-          <section className="pt-2 animate-in flex-1 flex flex-col fade-in slide-in-from-bottom-4 duration-700 delay-150 overflow-hidden">
+          <motion.section
+            className="pt-2 flex-1 flex flex-col overflow-hidden"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.65 }}
+          >
             <div className="flex items-center mb-4 ml-1 shrink-0">
               <h2 className="text-xs font-bold uppercase tracking-widest text-zinc-500">Survival Execution Timeline</h2>
             </div>
             <div className="flex-1 overflow-y-auto">
               <TimelineBoard schedule={schedule} tasks={tasks} />
             </div>
-          </section>
+          </motion.section>
 
           {/* Agent Status Bar */}
           <div className="bg-zinc-900 border border-white/10 text-zinc-300 p-3 rounded-xl flex items-center justify-between shrink-0 mb-4 mt-2">
@@ -350,7 +423,7 @@ export default function App() {
           </div>
 
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

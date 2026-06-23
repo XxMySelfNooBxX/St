@@ -8,6 +8,7 @@ export interface Task {
   estimatedMinutes?: number;
   panicScore?: number;   // 0–10, computed by agent
   atRisk?: boolean;      // true if deadline is dangerously close
+  deadline?: string;     // ISO 8601 string if user mentioned a specific deadline
 }
 
 export interface ExecutionBlock {
@@ -30,4 +31,5 @@ export interface TriageResult {
   schedule: ExecutionBlock[];
   reply: string;
   agentLog?: string[];
+  suggestions?: string[];  // AI-generated smart tips specific to current situation
 }

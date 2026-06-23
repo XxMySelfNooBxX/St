@@ -472,9 +472,11 @@ Agent analysis summary:
 Rules:
 - Generate a complete task list with panic scores from the prioritize_by_deadline results
 - Mark atRisk=true for any task in the atRiskTasks list: ${JSON.stringify(conflictData.atRiskTasks || [])}
+- For 'deadline': extract specific deadline times mentioned in the brain dump for each task (e.g. "due 9pm" → ISO string for today at 21:00). Leave empty string "" if no deadline mentioned.
 - Schedule starts from current time, blocks of focused work, 10-min break every 2 work blocks
 - Write an encouraging, human, slightly urgent reply (2-3 sentences max)
-- Task IDs must be short strings like "t1", "t2", etc.`;
+- Task IDs must be short strings like "t1", "t2", etc.
+- Generate 2-3 specific, actionable 'suggestions' — smart tips tailored to THIS user's exact situation. Examples: warn if a task has barely enough time, suggest batching similar tasks, flag scheduling conflicts. Be specific, not generic.`;
 
       const structuredResponse = await ai.models.generateContent({
         model: MODEL,
@@ -499,6 +501,7 @@ Rules:
                     estimatedMinutes: { type: Type.NUMBER },
                     panicScore: { type: Type.NUMBER, description: "0-10" },
                     atRisk: { type: Type.BOOLEAN },
+                    deadline: { type: Type.STRING, description: "ISO 8601 datetime if user specified a deadline, otherwise empty string" },
                   },
                   required: ["id", "title", "category", "status", "estimatedMinutes", "panicScore", "atRisk"],
                 },
@@ -519,8 +522,13 @@ Rules:
                 },
               },
               reply: { type: Type.STRING },
+              suggestions: {
+                type: Type.ARRAY,
+                description: "2-3 smart, specific, actionable tips tailored to this user's exact situation",
+                items: { type: Type.STRING },
+              },
             },
-            required: ["tasks", "schedule", "reply"],
+            required: ["tasks", "schedule", "reply", "suggestions"],
           },
         },
       });
