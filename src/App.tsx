@@ -1,7 +1,8 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { ChatInterface } from './components/ChatInterface';
 import { TaskTriageMatrix } from './components/TaskTriageMatrix';
 import { TimelineBoard } from './components/TimelineBoard';
+import { StatsBar } from './components/StatsBar';
 import { Message, Task, ExecutionBlock } from './types';
 
 // ─── Demo Data ──────────────────────────────────────────────────────────────
@@ -57,6 +58,65 @@ export default function App() {
   const [processingState, setProcessingState] = useState<string>('');
   const [agentLog, setAgentLog] = useState<string[]>([]);
   const [stressScore, setStressScore] = useState<number>(7);
+
+  // ─── Proactive check-in timer (every 25 mins) ───────────────────────────
+  const checkInTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const tasksRef = useRef(tasks);
+  const scheduleRef = useRef(schedule);
+  const setMessagesRef = useRef(setMessages);
+  tasksRef.current = tasks;
+  scheduleRef.current = schedule;
+  setMessagesRef.current = setMessages;
+
+  useEffect(() => {
+    const INTERVAL_MS = 25 * 60 * 1000; // 25 minutes
+
+    const runCheckIn = async () => {
+      const currentTasks = tasksRef.current;
+      const currentSchedule = scheduleRef.current;
+      const pending = currentTasks.filter(t => t.status !== 'completed');
+      if (pending.length === 0) return;
+
+      const now = new Date();
+      const activeBlock = currentSchedule.find(b => {
+        try {
+          const start = new Date(b.startTime).getTime();
+          const end = new Date(b.endTime).getTime();
+          return now.getTime() >= start && now.getTime() <= end;
+        } catch { return false; }
+      });
+
+      const activeTask = activeBlock?.taskId
+        ? currentTasks.find(t => t.id === activeBlock.taskId)
+        : pending[0];
+
+      try {
+        const res = await fetch('/api/checkin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            currentTaskTitle: activeTask?.title ?? 'your current task',
+            elapsedMinutes: 25,
+            remainingTasksCount: pending.length,
+            currentTime: now.toISOString(),
+          }),
+        });
+        const data = await res.json();
+        if (data.message) {
+          setMessagesRef.current(prev => [...prev, {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: data.message,
+          }]);
+        }
+      } catch { /* silent — don't disrupt user */ }
+    };
+
+    checkInTimerRef.current = setInterval(runCheckIn, INTERVAL_MS);
+    return () => {
+      if (checkInTimerRef.current) clearInterval(checkInTimerRef.current);
+    };
+  }, []); // runs once, uses refs to avoid stale closures
 
   // ─── Real-time stress analyzer ───────────────────────────────────────────
   const fetchStress = useCallback(async (text: string) => {
@@ -239,6 +299,11 @@ export default function App() {
               Real-time triage and autonomous timeline generation to prevent procrastination and minimize cognitive load.
             </p>
           </header>
+
+          {/* Session Stats Bar */}
+          <section className="shrink-0 animate-in fade-in duration-500">
+            <StatsBar tasks={tasks} schedule={schedule} />
+          </section>
 
           <section className="animate-in fade-in slide-in-from-bottom-4 duration-700 shrink-0">
             <div className="flex items-center mb-4 ml-1">

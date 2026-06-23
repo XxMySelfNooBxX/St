@@ -249,6 +249,45 @@ Text: "${text.substring(0, 400)}"`,
   });
 
   // ----------------------------------------------------------
+  // PROACTIVE CHECK-IN (timer-based agent nudge)
+  // ----------------------------------------------------------
+  app.post("/api/checkin", async (req, res) => {
+    try {
+      const { currentTaskTitle, elapsedMinutes, remainingTasksCount, currentTime } = req.body;
+
+      const response = await ai.models.generateContent({
+        model: MODEL,
+        contents: `You are "Last-Minute Life Saver" doing a proactive check-in with an overwhelmed user.
+Current time: ${currentTime}
+The user has been working for ${elapsedMinutes} minutes.
+Current task they should be on: "${currentTaskTitle}"
+Remaining tasks count: ${remainingTasksCount}
+
+Generate a SHORT (1-2 sentences MAX), direct, energetic check-in message.
+- Start with ⏰
+- Ask specifically how the current task is going
+- Mention the time elapsed
+- Be encouraging but urgent, not preachy
+- Do NOT suggest they take a break unless it is a break block`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: { message: { type: Type.STRING } },
+            required: ["message"],
+          },
+        },
+      });
+
+      const data = JSON.parse(response.text || '{}');
+      res.json(data);
+    } catch (e: any) {
+      const status = e?.status === 429 ? 429 : 500;
+      res.status(status).json({ error: e.message || "Check-in failed" });
+    }
+  });
+
+  // ----------------------------------------------------------
   // MAIN CHAT — REAL AGENTIC LOOP WITH FUNCTION CALLING
   // ----------------------------------------------------------
   app.post("/api/retriage", async (req, res) => {
