@@ -319,6 +319,7 @@ export default function App() {
   const agentStateLabel = isReTriaging ? 'Re-triaging schedule...' : processingState;
 
   return (
+    <>
     <div className="flex flex-col md:flex-row h-screen bg-zinc-950 overflow-hidden font-sans text-zinc-100 selection:bg-indigo-500/30 selection:text-white">
 
       {/* Left Panel: Chat + Particle Field */}
@@ -532,5 +533,6 @@ export default function App() {
         />
       )}
     </AnimatePresence>
+    </>
   );
 }
