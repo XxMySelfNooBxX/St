@@ -249,6 +249,65 @@ Text: "${text.substring(0, 400)}"`,
   });
 
   // ----------------------------------------------------------
+  // NATURAL LANGUAGE COMMAND PROCESSOR
+  // ----------------------------------------------------------
+  app.post("/api/command", async (req, res) => {
+    try {
+      const { command, currentSchedule, currentTasks, currentTime } = req.body;
+
+      const response = await ai.models.generateContent({
+        model: MODEL,
+        contents: `You are Last-Minute Life Saver's natural language command processor.
+Current time: ${currentTime}
+Current tasks: ${JSON.stringify(currentTasks, null, 2)}
+Current schedule: ${JSON.stringify(currentSchedule, null, 2)}
+
+User command: "${command}"
+
+Interpret the user's command and return an updated schedule.
+Rules:
+- Keep all task IDs exactly the same
+- Only modify what the command specifies
+- If command asks to skip/remove a task, remove its schedule blocks but keep the task in the tasks array
+- Write a short, direct confirmation (1 sentence) of what you changed
+- Preserve break blocks unless command explicitly removes them
+- If you can't interpret the command, return the original schedule unchanged with explanation in confirmation`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              schedule: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    id: { type: Type.STRING },
+                    title: { type: Type.STRING },
+                    startTime: { type: Type.STRING },
+                    endTime: { type: Type.STRING },
+                    taskId: { type: Type.STRING },
+                    type: { type: Type.STRING },
+                  },
+                  required: ["id", "title", "startTime", "endTime", "type"],
+                },
+              },
+              confirmation: { type: Type.STRING },
+            },
+            required: ["schedule", "confirmation"],
+          },
+        },
+      });
+
+      const data = JSON.parse(response.text || "{}");
+      res.json(data);
+    } catch (e: any) {
+      const status = e?.status === 429 ? 429 : 500;
+      res.status(status).json({ error: e.message || "Command failed" });
+    }
+  });
+
+  // ----------------------------------------------------------
   // PROACTIVE CHECK-IN (timer-based agent nudge)
   // ----------------------------------------------------------
   app.post("/api/checkin", async (req, res) => {

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Task, ExecutionBlock } from '../types';
 import { format, parseISO } from 'date-fns';
-import { Calendar, AlertTriangle } from 'lucide-react';
+import { Calendar, AlertTriangle, Play } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 function generateICS(block: ExecutionBlock, task?: Task): string {
@@ -26,7 +26,11 @@ function downloadICS(block: ExecutionBlock, task?: Task) {
   URL.revokeObjectURL(url);
 }
 
-export function TimelineBoard({ schedule, tasks }: { schedule: ExecutionBlock[]; tasks: Task[] }) {
+export function TimelineBoard({ schedule, tasks, onStartFocus }: {
+  schedule: ExecutionBlock[];
+  tasks: Task[];
+  onStartFocus?: (block: ExecutionBlock, task?: Task) => void;
+}) {
   const [now, setNow] = useState(new Date());
 
   // Update "now" every 30 seconds so the indicator moves
@@ -162,13 +166,22 @@ export function TimelineBoard({ schedule, tasks }: { schedule: ExecutionBlock[];
                             {format(parseISO(block.startTime), 'h:mm a')} – {format(parseISO(block.endTime), 'h:mm a')}
                           </span>
                           {block.type === 'work' && (
-                            <button
-                              onClick={() => downloadICS(block, task)}
-                              title="Export to Google Calendar"
-                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded bg-zinc-800 border border-white/10 hover:bg-zinc-700 hover:border-indigo-500/30 text-zinc-400 hover:text-indigo-300"
-                            >
-                              <Calendar className="w-3 h-3" />
-                            </button>
+                            <>
+                              <button
+                                onClick={() => onStartFocus?.(block, task)}
+                                title="Enter Focus Mode"
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded bg-indigo-600/20 border border-indigo-500/30 hover:bg-indigo-600/40 hover:border-indigo-400/50 text-indigo-300 hover:text-indigo-200"
+                              >
+                                <Play className="w-3 h-3 fill-current" />
+                              </button>
+                              <button
+                                onClick={() => downloadICS(block, task)}
+                                title="Export to Google Calendar"
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded bg-zinc-800 border border-white/10 hover:bg-zinc-700 hover:border-indigo-500/30 text-zinc-400 hover:text-indigo-300"
+                              >
+                                <Calendar className="w-3 h-3" />
+                              </button>
+                            </>
                           )}
                         </div>
                       </div>

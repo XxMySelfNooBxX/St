@@ -1,11 +1,16 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChatInterface } from './components/ChatInterface';
 import { TaskTriageMatrix } from './components/TaskTriageMatrix';
 import { TimelineBoard } from './components/TimelineBoard';
 import { StatsBar } from './components/StatsBar';
 import { ParticleField } from './components/ParticleField';
+import { FocusMode } from './components/FocusMode';
+import { CommandBar } from './components/CommandBar';
 import { Message, Task, ExecutionBlock } from './types';
+
+// Lazy load the 3D chart — it's heavy, only loads when user requests it
+const PanicChart3D = lazy(() => import('./components/PanicChart3D').then(m => ({ default: m.PanicChart3D })));
 
 // ─── Demo Data ──────────────────────────────────────────────────────────────
 const DEMO_TASKS: Task[] = [
@@ -62,6 +67,9 @@ export default function App() {
   const [stressScore, setStressScore] = useState<number>(7);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
+  const [focusBlock, setFocusBlock] = useState<{ block: ExecutionBlock; task?: Task } | null>(null);
+  const [show3D, setShow3D] = useState(false);
+  const [isCommandProcessing, setIsCommandProcessing] = useState(false);
 
   // ─── Proactive check-in timer (every 25 mins) ───────────────────────────
   const checkInTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -194,7 +202,41 @@ export default function App() {
     }
   }, [tasks, schedule]);
 
-  // ─── Main send handler with multi-turn history ────────────────────────────
+  // ─── Natural Language Command Handler ───────────────────────────────────────────
+  const handleCommand = useCallback(async (command: string) => {
+    setIsCommandProcessing(true);
+    try {
+      const res = await fetch('/api/command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          command,
+          currentSchedule: schedule,
+          currentTasks: tasks,
+          currentTime: new Date().toISOString(),
+        }),
+      });
+      const data = await res.json();
+      if (data.schedule) setSchedule(data.schedule);
+      if (data.confirmation) {
+        setMessages(prev => [...prev, {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: `⚡ ${data.confirmation}`,
+        }]);
+      }
+    } catch {
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: 'Command failed. Try again after the rate limit resets.',
+      }]);
+    } finally {
+      setIsCommandProcessing(false);
+    }
+  }, [schedule, tasks]);
+
+  // ─── Main send handler with multi-turn history ─────────────────────────────
   const handleSendMessage = async (content: string) => {
     const newUserMsg: Message = { id: crypto.randomUUID(), role: 'user', content };
     setMessages(prev => [...prev, newUserMsg]);
@@ -316,12 +358,17 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
           >
-            <h1 className="text-3xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white to-zinc-400 mb-2 ml-1">
-              Execution Dashboard
-            </h1>
-            <p className="text-zinc-500 font-medium ml-1 text-sm">
-              Real-time triage and autonomous timeline generation to prevent procrastination and minimize cognitive load.
-            </p>
+            <div className="flex items-start justify-between ml-1">
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white to-zinc-400 mb-2">
+                  Execution Dashboard
+                </h1>
+                <p className="text-zinc-500 font-medium text-sm">
+                  Real-time triage and autonomous timeline generation to prevent procrastination and minimize cognitive load.
+                </p>
+              </div>
+              <CommandBar onCommand={handleCommand} isProcessing={isCommandProcessing} />
+            </div>
           </motion.header>
 
           {/* Smart Suggestions */}
@@ -374,13 +421,54 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.55 }}
           >
-            <div className="flex items-center mb-4 ml-1">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-zinc-500">Task Triage Matrix</h2>
-              {isReTriaging && (
-                <span className="ml-3 text-[10px] text-indigo-400 font-mono animate-pulse">⟳ Re-triaging...</span>
-              )}
+            <div className="flex items-center justify-between mb-4 ml-1">
+              <div className="flex items-center gap-3">
+                <h2 className="text-xs font-bold uppercase tracking-widest text-zinc-500">Task Triage Matrix</h2>
+                {isReTriaging && (
+                  <span className="text-[10px] text-indigo-400 font-mono animate-pulse">⟳ Re-triaging...</span>
+                )}
+              </div>
+              {/* 3D toggle */}
+              <button
+                onClick={() => setShow3D(v => !v)}
+                className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg border transition-all ${
+                  show3D
+                    ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300'
+                    : 'bg-zinc-900 border-white/10 text-zinc-500 hover:text-zinc-300 hover:border-indigo-500/30'
+                }`}
+              >
+                <span className="text-sm leading-none">{show3D ? '▣' : '▤'}</span>
+                {show3D ? '2D View' : '3D View'}
+              </button>
             </div>
-            <TaskTriageMatrix tasks={tasks} onTaskComplete={handleTaskComplete} />
+
+            <AnimatePresence mode="wait">
+              {show3D ? (
+                <motion.div key="3d"
+                  initial={{ opacity: 0, scale: 0.97 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.97 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <Suspense fallback={
+                    <div className="h-[320px] rounded-xl bg-zinc-900 border border-white/10 flex items-center justify-center text-zinc-600 text-sm">
+                      Loading 3D view...
+                    </div>
+                  }>
+                    <PanicChart3D tasks={tasks} />
+                  </Suspense>
+                </motion.div>
+              ) : (
+                <motion.div key="2d"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                >
+                  <TaskTriageMatrix tasks={tasks} onTaskComplete={handleTaskComplete} />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.section>
 
           <motion.section
@@ -393,7 +481,11 @@ export default function App() {
               <h2 className="text-xs font-bold uppercase tracking-widest text-zinc-500">Survival Execution Timeline</h2>
             </div>
             <div className="flex-1 overflow-y-auto">
-              <TimelineBoard schedule={schedule} tasks={tasks} />
+              <TimelineBoard
+                schedule={schedule}
+                tasks={tasks}
+                onStartFocus={(block, task) => setFocusBlock({ block, task })}
+              />
             </div>
           </motion.section>
 
@@ -425,5 +517,20 @@ export default function App() {
         </div>
       </motion.div>
     </div>
+
+    {/* Focus Mode overlay */}
+    <AnimatePresence>
+      {focusBlock && (
+        <FocusMode
+          block={focusBlock.block}
+          task={focusBlock.task}
+          onClose={() => setFocusBlock(null)}
+          onComplete={(taskId) => {
+            handleTaskComplete(taskId);
+            setFocusBlock(null);
+          }}
+        />
+      )}
+    </AnimatePresence>
   );
 }
