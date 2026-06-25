@@ -1,1 +1,160 @@
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, sans-serif;
+
+  /* Dynamically map zinc color palette to theme CSS variables */
+  --color-zinc-950: var(--color-bg-app);
+  --color-zinc-900: var(--color-bg-panel);
+  --color-zinc-800: var(--color-bg-panel-hover);
+  --color-zinc-700: var(--color-bg-active);
+  --color-zinc-600: var(--color-text-muted-darker);
+  --color-zinc-500: var(--color-text-muted-dark);
+  --color-zinc-400: var(--color-text-muted);
+  --color-zinc-300: var(--color-text-secondary);
+  --color-zinc-200: var(--color-text-primary-sub);
+  --color-zinc-100: var(--color-text-primary);
+}
+
+:root {
+  /* Light Mode theme tokens */
+  --color-bg-app: #f4f4f5; /* zinc-100 */
+  --color-bg-panel: #ffffff; /* pure white */
+  --color-bg-panel-hover: #e4e4e7; /* zinc-200 */
+  --color-bg-active: #d4d4d8; /* zinc-300 */
+  
+  --color-text-primary: #09090b; /* zinc-950 */
+  --color-text-primary-sub: #18181b; /* zinc-900 */
+  --color-text-secondary: #27272a; /* zinc-800 */
+  --color-text-muted: #52525b; /* zinc-600 */
+  --color-text-muted-dark: #71717a; /* zinc-500 */
+  --color-text-muted-darker: #a1a1aa; /* zinc-400 */
+
+  --color-bg-glass: rgba(255, 255, 255, 0.4);
+  --color-bg-glass-panel: rgba(255, 255, 255, 0.6);
+  --border-panel: rgba(9, 9, 11, 0.08);
+  --shadow-panel: 0 8px 32px rgba(9, 9, 11, 0.05);
+}
+
+.dark {
+  /* Dark Mode theme tokens (original zinc colors) */
+  --color-bg-app: #09090b; /* zinc-950 */
+  --color-bg-panel: #18181b; /* zinc-900 */
+  --color-bg-panel-hover: #27272a; /* zinc-800 */
+  --color-bg-active: #3f3f46; /* zinc-700 */
+  
+  --color-text-primary: #f4f4f5; /* zinc-100 */
+  --color-text-primary-sub: #e4e4e7; /* zinc-200 */
+  --color-text-secondary: #d4d4d8; /* zinc-300 */
+  --color-text-muted: #a1a1aa; /* zinc-400 */
+  --color-text-muted-dark: #71717a; /* zinc-500 */
+  --color-text-muted-darker: #52525b; /* zinc-600 */
+
+  --color-bg-glass: rgba(24, 24, 27, 0.4);
+  --color-bg-glass-panel: rgba(24, 24, 27, 0.6);
+  --border-panel: rgba(255, 255, 255, 0.1);
+  --shadow-panel: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer utilities {
+  .glass {
+    background-color: var(--color-bg-glass);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border-panel);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05);
+  }
+
+  .glass-panel {
+    background-color: var(--color-bg-glass-panel);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--border-panel);
+    box-shadow: var(--shadow-panel);
+  }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-zinc-700);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-zinc-800);
+  }
+
+  .bg-grid-pattern {
+    background-size: 32px 32px;
+    background-image: radial-gradient(var(--color-zinc-400) 1px, transparent 1px);
+    opacity: 0.15;
+  }
+
+  /* Reduce motion */
+  @media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* Light mode overrides for hardcoded translucent dark-theme classes */
+html:not(.dark) .border-white\/10 {
+  border-color: rgba(9, 9, 11, 0.08) !important;
+}
+html:not(.dark) .border-white\/5 {
+  border-color: rgba(9, 9, 11, 0.04) !important;
+}
+html:not(.dark) .border-white\/15 {
+  border-color: rgba(9, 9, 11, 0.12) !important;
+}
+html:not(.dark) .border-white\/20 {
+  border-color: rgba(9, 9, 11, 0.15) !important;
+}
+html:not(.dark) .border-b-white\/10 {
+  border-bottom-color: rgba(9, 9, 11, 0.08) !important;
+}
+html:not(.dark) .border-t-white\/10 {
+  border-top-color: rgba(9, 9, 11, 0.08) !important;
+}
+html:not(.dark) .border-t-white\/5 {
+  border-top-color: rgba(9, 9, 11, 0.04) !important;
+}
+html:not(.dark) .border-b-white\/5 {
+  border-bottom-color: rgba(9, 9, 11, 0.04) !important;
+}
+html:not(.dark) .border-l-white\/10 {
+  border-left-color: rgba(9, 9, 11, 0.08) !important;
+}
+html:not(.dark) .border-dashed {
+  border-color: rgba(9, 9, 11, 0.15) !important;
+}
+html:not(.dark) .bg-white\/5 {
+  background-color: rgba(9, 9, 11, 0.03) !important;
+}
+html:not(.dark) .bg-zinc-950\/50 {
+  background-color: rgba(244, 244, 245, 0.5) !important;
+}
+html:not(.dark) .bg-zinc-950\/80 {
+  background-color: rgba(9, 9, 11, 0.4) !important; /* modal backdrop */
+}
+
+/* Adjust scrollbar thumb in light mode */
+html:not(.dark) ::-webkit-scrollbar-thumb {
+  background-color: rgba(9, 9, 11, 0.15) !important;
+}
+html:not(.dark) ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(9, 9, 11, 0.25) !important;
+}

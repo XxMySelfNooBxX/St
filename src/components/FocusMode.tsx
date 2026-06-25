@@ -162,7 +162,7 @@ export function FocusMode({ block, task, onClose, onComplete }: FocusModeProps) 
         </div>
 
         {/* Task title */}
-        <h1 className="text-2xl md:text-3xl font-bold text-white mb-2 leading-tight max-w-md">
+        <h1 className="text-2xl md:text-3xl font-bold text-zinc-100 mb-2 leading-tight max-w-md">
           {task?.title ?? block.title}
         </h1>
         {task?.category && (

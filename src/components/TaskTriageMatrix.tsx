@@ -35,9 +35,10 @@ function CountdownTimer({ deadline }: { deadline: string }) {
 interface TaskTriageMatrixProps {
   tasks: Task[];
   onTaskComplete?: (taskId: string) => void;
+  onTaskDecompose?: (task: Task) => void;
 }
 
-export function TaskTriageMatrix({ tasks, onTaskComplete }: TaskTriageMatrixProps) {
+export function TaskTriageMatrix({ tasks, onTaskComplete, onTaskDecompose }: TaskTriageMatrixProps) {
   const urgent = tasks.filter(t => t.category === 'Urgent & Critical');
   const dependency = tasks.filter(t => t.category === 'High Dependency');
   const micro = tasks.filter(t => t.category === 'Micro-Tasks');
@@ -162,6 +163,37 @@ export function TaskTriageMatrix({ tasks, onTaskComplete }: TaskTriageMatrixProp
                         </div>
                       )}
                       {hasDeadline && <CountdownTimer deadline={t.deadline!} />}
+                      
+                      {/* Break Down Button */}
+                      {!t.subtasks && t.estimatedMinutes && t.estimatedMinutes >= 30 && onTaskDecompose && (
+                        <button
+                          onClick={() => onTaskDecompose(t)}
+                          className="ml-auto flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 hover:border-indigo-500/60 bg-indigo-500/10 hover:bg-indigo-500/20 px-2 py-0.5 rounded transition-colors"
+                        >
+                          <span className="text-xs leading-none">⚡</span> Break down
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Render Subtasks */}
+                  {t.subtasks && t.subtasks.length > 0 && (
+                    <div className="mt-2 pl-5 pr-1 space-y-1.5 border-t border-white/5 pt-2">
+                      {t.subtasks.map(sub => (
+                        <div key={sub.id} className="flex items-start gap-2 text-[11px]">
+                          <button
+                            onClick={() => !isDone && sub.status !== 'completed' && onTaskComplete?.(sub.id)}
+                            disabled={isDone || sub.status === 'completed'}
+                            className={`mt-0.5 shrink-0 ${sub.status === 'completed' || isDone ? 'text-emerald-500 cursor-default' : 'text-zinc-600 hover:text-emerald-400'}`}
+                          >
+                            {sub.status === 'completed' || isDone ? <CheckCircle2 className="w-3 h-3" /> : <Circle className="w-3 h-3" />}
+                          </button>
+                          <span className={`flex-1 ${sub.status === 'completed' || isDone ? 'line-through text-zinc-600' : 'text-zinc-400'}`}>
+                            {sub.title}
+                          </span>
+                          <span className="text-[9px] font-mono text-zinc-600 shrink-0">{sub.estimatedMinutes}m</span>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </motion.div>

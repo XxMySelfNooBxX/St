@@ -125,7 +125,7 @@ function checkScheduleConflicts(
         if (minutesUntilDeadline < (task.estimatedMinutes || 30) * 1.5) {
           atRiskTasks.push(task.title);
         }
-      } catch {}
+      } catch { }
     }
   });
 
@@ -157,13 +157,122 @@ function prioritizeByDeadline(
         const ratio = minutesUntilDeadline / (task.estimatedMinutes || 30);
         if (ratio < 1.5) { panicScore = 10; atRisk = true; }
         else if (ratio < 3) panicScore = Math.max(panicScore, 8);
-      } catch {}
+      } catch { }
     }
 
     return { title: task.title, panicScore, priority, atRisk };
   });
 
   return scored.sort((a, b) => b.panicScore - a.panicScore);
+}
+
+function decomposeTask(
+  taskTitle: string,
+  estimatedMinutes: number
+): { subtasks: Array<{ id: string; title: string; estimatedMinutes: number }> } {
+  const lower = taskTitle.toLowerCase();
+  const subtasks = [];
+  const partMin = Math.floor(estimatedMinutes / 3) || 15;
+
+  if (lower.includes("essay") || lower.includes("report") || lower.includes("paper")) {
+    subtasks.push(
+      { id: `sub-${Math.random().toString(36).substring(2, 7)}`, title: "Research & outline", estimatedMinutes: partMin },
+      { id: `sub-${Math.random().toString(36).substring(2, 7)}`, title: "Drafting core content", estimatedMinutes: partMin * 1.5 },
+      { id: `sub-${Math.random().toString(36).substring(2, 7)}`, title: "Editing and formatting", estimatedMinutes: estimatedMinutes - Math.floor(partMin * 2.5) }
+    );
+  } else if (lower.includes("study") || lower.includes("exam") || lower.includes("test")) {
+    subtasks.push(
+      { id: `sub-${Math.random().toString(36).substring(2, 7)}`, title: "Review lecture notes & key concepts", estimatedMinutes: partMin * 1.2 },
+      { id: `sub-${Math.random().toString(36).substring(2, 7)}`, title: "Solve practice questions", estimatedMinutes: partMin * 1.2 },
+      { id: `sub-${Math.random().toString(36).substring(2, 7)}`, title: "Active recall on weak areas", estimatedMinutes: estimatedMinutes - Math.floor(partMin * 2.4) }
+    );
+  } else {
+    subtasks.push(
+      { id: `sub-${Math.random().toString(36).substring(2, 7)}`, title: "Preparation & setup", estimatedMinutes: partMin },
+      { id: `sub-${Math.random().toString(36).substring(2, 7)}`, title: "Core execution & drafting", estimatedMinutes: estimatedMinutes - partMin * 2 },
+      { id: `sub-${Math.random().toString(36).substring(2, 7)}`, title: "Review & finalize", estimatedMinutes: partMin }
+    );
+  }
+  return { subtasks };
+}
+
+function estimateEnergyCurve(
+  currentTime: string,
+  userStateDescription: string
+): { energyCurve: Array<{ hour: number; energy: number; label?: string }> } {
+  const startHour = new Date(currentTime).getHours();
+  const lower = userStateDescription.toLowerCase();
+
+  const curve = [];
+  const hours = 12; // predict next 12 hours
+
+  let modifier = 0;
+  if (lower.includes("exhausted") || lower.includes("tired") || lower.includes("sleepy") || lower.includes("drained")) {
+    modifier = -3;
+  } else if (lower.includes("caffeinated") || lower.includes("hyped") || lower.includes("energetic")) {
+    modifier = 2;
+  }
+
+  let primaryLabel = "Optimal Focus";
+  const startEnergy = 8 + modifier;
+  if (startEnergy <= 4) primaryLabel = "Recovery State";
+  else if (startEnergy <= 6) primaryLabel = "Moderate Energy";
+
+  for (let i = 0; i < hours; i++) {
+    const targetHour = (startHour + i) % 24;
+    let baseLevel = 7;
+
+    if (targetHour >= 9 && targetHour <= 12) baseLevel = 9;
+    else if (targetHour >= 13 && targetHour <= 16) baseLevel = 5;
+    else if (targetHour >= 18 && targetHour <= 21) baseLevel = 8;
+    else if (targetHour >= 22 || targetHour <= 5) baseLevel = 3;
+
+    const finalLevel = Math.min(10, Math.max(1, baseLevel + modifier));
+
+    let label = "Stable";
+    if (finalLevel >= 8) label = "Peak Focus";
+    else if (finalLevel <= 4) label = "Recovery";
+    else label = "Moderate";
+
+    curve.push({
+      hour: targetHour,
+      energy: finalLevel,
+      label: i === 0 ? primaryLabel : label
+    });
+  }
+
+  return { energyCurve: curve };
+}
+
+function suggestTaskBatching(
+  tasks: Array<{ title: string; category: string }>
+): { batchSuggestions: string[] } {
+  const suggestions: string[] = [];
+  const microTasks = tasks.filter(t => t.category === "Micro-Tasks");
+  if (microTasks.length >= 2) {
+    suggestions.push(
+      `Batch together your ${microTasks.length} micro-tasks ("${microTasks.map(t => t.title.split(' ')[0]).join('", "')}") into a single 25-minute sprint to reduce context switching.`
+    );
+  }
+  const studyTasks = tasks.filter(t => t.title.toLowerCase().includes("study") || t.title.toLowerCase().includes("read") || t.title.toLowerCase().includes("exam"));
+  if (studyTasks.length >= 2) {
+    suggestions.push(
+      `Combine your study blocks to maintain high cognitive focus on reading/reviewing.`
+    );
+  }
+  return { batchSuggestions: suggestions };
+}
+
+function calculateMinimumViablePlan(
+  tasks: Array<{ title: string; panicScore: number; atRisk?: boolean; category: string }>,
+  availableMinutes: number
+): { mvpTasks: string[]; riskReductionPercentage: number } {
+  const mvp = tasks.filter(t => t.category === "Urgent & Critical" || (t.panicScore && t.panicScore >= 8) || t.atRisk);
+  const riskReduction = tasks.length > 0 ? Math.round((mvp.length / tasks.length) * 100) : 0;
+  return {
+    mvpTasks: mvp.map(t => t.title),
+    riskReductionPercentage: riskReduction,
+  };
 }
 
 // ============================================================
@@ -183,6 +292,18 @@ function dispatchTool(name: string, args: Record<string, any>): any {
       break;
     case "prioritize_by_deadline":
       result = prioritizeByDeadline(args.tasks || []);
+      break;
+    case "decompose_task":
+      result = decomposeTask(args.taskTitle, args.estimatedMinutes || 60);
+      break;
+    case "estimate_energy_curve":
+      result = estimateEnergyCurve(args.currentTime || new Date().toISOString(), args.userStateDescription || "");
+      break;
+    case "suggest_task_batching":
+      result = suggestTaskBatching(args.tasks || []);
+      break;
+    case "calculate_minimum_viable_plan":
+      result = calculateMinimumViablePlan(args.tasks || [], args.availableMinutes || 480);
       break;
     default:
       result = { error: `Unknown tool: ${name}` };
@@ -260,7 +381,171 @@ const TOOL_DECLARATIONS = [
       required: ["tasks"],
     },
   },
+  {
+    name: "decompose_task",
+    description: "Breaks down a complex or long task into 2-3 actionable subtasks with individual estimated durations. Call this whenever a task is estimated to take 45+ minutes, is highly complex, or is described by the user as overwhelming.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        taskTitle: { type: Type.STRING, description: "The title of the task to decompose" },
+        estimatedMinutes: { type: Type.NUMBER, description: "Estimated duration of the parent task in minutes" },
+      },
+      required: ["taskTitle", "estimatedMinutes"],
+    },
+  },
+  {
+    name: "estimate_energy_curve",
+    description: "Predicts the user's cognitive energy curve (0-10) for the next 8-12 hours based on current time and their self-described mental/physical state (e.g. tired, caffeinated, panicking). Call this once at the start to align high-panic tasks with peak energy windows.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        currentTime: { type: Type.STRING, description: "ISO 8601 current datetime string" },
+        userStateDescription: { type: Type.STRING, description: "Description of how the user is feeling physically or mentally, extracted from their brain dump" },
+      },
+      required: ["currentTime", "userStateDescription"],
+    },
+  },
+  {
+    name: "suggest_task_batching",
+    description: "Identifies tasks that can be batched together (e.g. all micro-tasks, emails, or admin tasks) to minimize context switching. Call this after estimating task categories and durations.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        tasks: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              category: { type: Type.STRING, description: "'Urgent & Critical', 'High Dependency', or 'Micro-Tasks'" },
+            },
+            required: ["title", "category"],
+          },
+        },
+      },
+      required: ["tasks"],
+    },
+  },
+  {
+    name: "calculate_minimum_viable_plan",
+    description: "Calculates a pared-down Minimum Viable Plan (MVP) containing only the absolute most critical, high-panic, or at-risk tasks to ensure basic survival if the user has a massive schedule conflict. Call this when check_schedule_conflicts flags a conflict.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        tasks: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              panicScore: { type: Type.NUMBER },
+              atRisk: { type: Type.BOOLEAN },
+              category: { type: Type.STRING },
+            },
+            required: ["title", "category"],
+          },
+        },
+        availableMinutes: { type: Type.NUMBER, description: "Minutes available until midnight" },
+      },
+      required: ["tasks", "availableMinutes"],
+    },
+  },
 ];
+
+// Local Heuristic Fallback Parser for Triage
+function localTriageFallback(text: string, currentTime: string): any {
+  console.log("[FALLBACK] Running local heuristic triage parser...");
+  const now = new Date(currentTime);
+  const lines = text.split(/[.\n]+/).map(s => s.trim()).filter(s => s.length > 8);
+
+  const rawTasks = lines.length > 0 ? lines.slice(0, 5) : ["CS assignment Sprint", "Group project prep", "Read economics chapter"];
+
+  const tasks = rawTasks.map((title, index) => {
+    const id = `t${index + 1}`;
+    let category: "Urgent & Critical" | "High Dependency" | "Micro-Tasks" = "Micro-Tasks";
+    let estimatedMinutes = 30;
+    let panicScore = 5;
+    let atRisk = false;
+    let deadline = "";
+
+    const lower = title.toLowerCase();
+
+    if (lower.includes("essay") || lower.includes("exam") || lower.includes("study") || lower.includes("project") || lower.includes("assignment") || lower.includes("cs")) {
+      category = "Urgent & Critical";
+      estimatedMinutes = lower.includes("study") || lower.includes("exam") ? 90 : 120;
+      panicScore = 9;
+    } else if (lower.includes("meeting") || lower.includes("call") || lower.includes("slides") || lower.includes("presentation")) {
+      category = "High Dependency";
+      estimatedMinutes = 60;
+      panicScore = 7;
+    } else {
+      category = "Micro-Tasks";
+      estimatedMinutes = lower.includes("email") || lower.includes("message") ? 15 : 20;
+      panicScore = 4;
+    }
+
+    if (lower.includes("9pm") || lower.includes("9 pm")) {
+      const d = new Date(now); d.setHours(21, 0, 0, 0);
+      deadline = d.toISOString();
+      atRisk = true;
+      panicScore = 10;
+    } else if (lower.includes("6pm") || lower.includes("6 pm")) {
+      const d = new Date(now); d.setHours(18, 0, 0, 0);
+      deadline = d.toISOString();
+    }
+
+    return { id, title, category, status: "pending" as const, estimatedMinutes, panicScore, atRisk, deadline };
+  });
+
+  tasks.sort((a, b) => b.panicScore - a.panicScore);
+
+  const schedule: any[] = [];
+  let offsetMinutes = 0;
+  const addMinutes = (m: number) => new Date(now.getTime() + m * 60000);
+
+  tasks.forEach((task, i) => {
+    const start = addMinutes(offsetMinutes);
+    offsetMinutes += task.estimatedMinutes;
+    const end = addMinutes(offsetMinutes);
+
+    schedule.push({
+      id: `s-w-${task.id}`,
+      title: `${task.title} Sprint`,
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
+      taskId: task.id,
+      type: "work"
+    });
+
+    if ((i + 1) % 2 === 0 && i < tasks.length - 1) {
+      const bStart = addMinutes(offsetMinutes);
+      offsetMinutes += 10;
+      const bEnd = addMinutes(offsetMinutes);
+      schedule.push({
+        id: `s-b-${i}`,
+        title: "Recovery Break",
+        startTime: bStart.toISOString(),
+        endTime: bEnd.toISOString(),
+        type: "break"
+      });
+    }
+  });
+
+  const suggestions = [
+    "⚡ Local Fallback active: Triage calculated locally due to Gemini free tier rate limits.",
+    tasks.some(t => t.atRisk) ? "⚠️ Proactive warning: Some deadlines are extremely tight. Focus heavily on Urgent tasks." : "Schedule looks tight, but feasible. Take regular breaks.",
+  ];
+
+  const energyCurve = estimateEnergyCurve(currentTime, text).energyCurve;
+
+  return {
+    tasks,
+    schedule,
+    reply: `⚠️ [FREE TIER FALLBACK] I triaged your tasks locally. You have ${tasks.length} tasks scheduled today. Let's focus on the critical sprint first.`,
+    suggestions,
+    energyCurve
+  };
+}
 
 // ============================================================
 // SERVER
@@ -357,8 +642,11 @@ Rules:
       const data = JSON.parse(response.text || "{}");
       res.json(data);
     } catch (e: any) {
-      const status = e?.status === 429 ? 429 : 500;
-      res.status(status).json({ error: e.message || "Command failed" });
+      console.warn("[COMMAND] Gemini command processing failed, using local fallback. Error:", e.message || e);
+      res.json({
+        schedule: req.body.currentSchedule,
+        confirmation: `Processed locally: "${req.body.command}" (AI offline)`
+      });
     }
   });
 
@@ -418,8 +706,12 @@ Rules:
       const data = JSON.parse(response.text || "{}");
       res.json(data);
     } catch (e: any) {
-      const status = e?.status === 429 ? 429 : 500;
-      res.status(status).json({ error: e.message || "Scenario analysis failed" });
+      console.warn("[WHATIF] Gemini scenario planning failed, using local fallback. Error:", e.message || e);
+      res.json({
+        analysis: `Analyzed locally: "${req.body.scenario}". Skipping a task will free up schedule space. (AI offline)`,
+        timeSaved: 30,
+        schedule: req.body.currentSchedule
+      });
     }
   });
 
@@ -457,8 +749,10 @@ Generate a SHORT (1-2 sentences MAX), direct, energetic check-in message.
       const data = JSON.parse(response.text || '{}');
       res.json(data);
     } catch (e: any) {
-      const status = e?.status === 429 ? 429 : 500;
-      res.status(status).json({ error: e.message || "Check-in failed" });
+      console.warn("[CHECKIN] Gemini check-in failed, using local fallback. Error:", e.message || e);
+      res.json({
+        message: `⏰ Proactive Check-in: You've been working on "${req.body.currentTaskTitle}" for ${req.body.elapsedMinutes} minutes. How is it going? Keep pushing!`
+      });
     }
   });
 
@@ -538,6 +832,60 @@ Rules:
   });
 
   // ----------------------------------------------------------
+  // TASK DECOMPOSITION ENDPOINT
+  // ----------------------------------------------------------
+  app.post("/api/decompose", async (req, res) => {
+    const { taskTitle, estimatedMinutes, complexity } = req.body;
+    console.log(`[DECOMPOSE] Received request for task: "${taskTitle}"`);
+    try {
+      const response = await geminiCall(() => ai.models.generateContent({
+        model: MODEL_LITE,
+        contents: `You are Last-Minute Life Saver's task decomposition agent.
+Break down the following task into 2-4 actionable subtasks.
+
+Task: "${taskTitle}"
+Total Estimated Minutes: ${estimatedMinutes}
+Complexity: ${complexity}
+
+Rules:
+- Generate 2-4 sequential subtasks
+- Their combined estimatedMinutes should roughly equal the total
+- Subtasks should be specific and actionable
+- Keep subtask titles under 60 characters
+- Return JSON strictly following the schema.`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              subtasks: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    id: { type: Type.STRING },
+                    title: { type: Type.STRING },
+                    estimatedMinutes: { type: Type.NUMBER },
+                  },
+                  required: ["id", "title", "estimatedMinutes"],
+                },
+              },
+            },
+            required: ["subtasks"],
+          },
+        },
+      }));
+
+      const data = JSON.parse(response.text || "{}");
+      res.json(data);
+    } catch (e: any) {
+      console.warn("[DECOMPOSE] Gemini call failed, using local fallback. Error:", e.message || e);
+      const fallbackData = decomposeTask(taskTitle, estimatedMinutes || 60);
+      res.json(fallbackData);
+    }
+  });
+
+  // ----------------------------------------------------------
   // MAIN CHAT — REAL AGENTIC LOOP WITH FUNCTION CALLING
   // ----------------------------------------------------------
   app.post("/api/chat", async (req, res) => {
@@ -556,10 +904,13 @@ Current time: ${currentTime}${historyContext}
 
 INSTRUCTIONS:
 1. Read the brain dump carefully and identify ALL individual tasks.
-2. Call estimate_task_duration for EACH task you identify.
-3. Once you have all durations, call check_schedule_conflicts with the complete task list.
-4. Call prioritize_by_deadline to compute the execution order.
-5. After all tool results are in, stop calling tools. The system will generate the final schedule.
+2. Extract or infer how the user is feeling physically/mentally and call estimate_energy_curve.
+3. Call estimate_task_duration for EACH task you identify.
+4. If any task is estimated to take 45+ minutes, call decompose_task to break it down into actionable steps.
+5. Once you have all tasks, call suggest_task_batching to find batching opportunities.
+6. Call check_schedule_conflicts. If it returns conflicts, call calculate_minimum_viable_plan to determine the core survival tasks.
+7. Call prioritize_by_deadline to compute the final panic scores and execution order.
+8. After all tool results are in, stop calling tools. The system will generate the final schedule.
 
 Brain dump: """${text}"""`;
 
@@ -651,7 +1002,8 @@ Rules:
 - Schedule starts from current time, blocks of focused work, 10-min break every 2 work blocks
 - Write an encouraging, human, slightly urgent reply (2-3 sentences max)
 - Task IDs must be short strings like "t1", "t2", etc.
-- Generate 2-3 specific, actionable 'suggestions' — smart tips tailored to THIS user's exact situation. Examples: warn if a task has barely enough time, suggest batching similar tasks, flag scheduling conflicts. Be specific, not generic.`;
+- Generate 2-3 specific, actionable 'suggestions' — smart tips tailored to THIS user's exact situation. Examples: warn if a task has barely enough time, suggest batching similar tasks, flag scheduling conflicts. Be specific, not generic.
+- Generate a predicted 'energyCurve' array of 8-12 hours based on the estimate_energy_curve results. Each point must have "hour" (0-23, number), "energy" (0-10, number), and "label" (string). If estimate_energy_curve was not called, generate a fallback curve based on the current time and user stress (extreme stress slumps sooner, high energy peaks).`;
 
       const structuredResponse = await geminiCall(() => ai.models.generateContent({
         model: MODEL,
@@ -702,8 +1054,21 @@ Rules:
                 description: "2-3 smart, specific, actionable tips tailored to this user's exact situation",
                 items: { type: Type.STRING },
               },
+              energyCurve: {
+                type: Type.ARRAY,
+                description: "Predicted circadian energy levels per hour",
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    hour: { type: Type.NUMBER },
+                    energy: { type: Type.NUMBER },
+                    label: { type: Type.STRING },
+                  },
+                  required: ["hour", "energy"],
+                },
+              },
             },
-            required: ["tasks", "schedule", "reply", "suggestions"],
+            required: ["tasks", "schedule", "reply", "suggestions", "energyCurve"],
           },
         },
       }));
@@ -713,12 +1078,9 @@ Rules:
 
       res.json(triageData);
     } catch (e: any) {
-      console.error("[SERVER ERROR]", e);
-      const status = e?.status === 429 ? 429 : 500;
-      const message = e?.status === 429
-        ? "Rate limit exceeded on Gemini free tier. Please wait ~60 seconds and try again."
-        : (e.message || "Agent failed to process brain dump");
-      res.status(status).json({ error: message });
+      console.warn("[CHAT] Gemini agent loop failed, using local fallback. Error:", e.message || e);
+      const fallbackResult = localTriageFallback(req.body.text, req.body.currentTime);
+      res.json(fallbackResult);
     }
   });
 

@@ -214,7 +214,7 @@ export function ChatInterface({ messages, onSendMessage, onInputChange, isProces
               className={`absolute right-12 bottom-3 p-2 border rounded-lg text-xs font-semibold transition-all ${
                 isRecording
                   ? 'bg-red-600 border-red-500/40 text-white shadow-[0_0_16px_rgba(239,68,68,0.4)] animate-pulse'
-                  : 'bg-zinc-800 border-white/10 text-zinc-400 hover:bg-zinc-700 hover:text-white'
+                  : 'bg-zinc-800 border-white/10 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100'
               } hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
@@ -225,7 +225,7 @@ export function ChatInterface({ messages, onSendMessage, onInputChange, isProces
           <button
             type="submit"
             disabled={sendDisabled}
-            className={`absolute right-3 bottom-3 p-2 border border-white/10 text-white rounded-lg text-xs font-semibold transition-all ${
+            className={`absolute right-3 bottom-3 p-2 border border-white/10 text-zinc-100 rounded-lg text-xs font-semibold transition-all ${
               isPanicking && !sendDisabled
                 ? 'bg-red-600 hover:bg-red-500 border-red-500/40 shadow-[0_0_16px_rgba(239,68,68,0.4)] animate-pulse'
                 : 'bg-zinc-800 hover:bg-zinc-700'
@@ -234,7 +234,7 @@ export function ChatInterface({ messages, onSendMessage, onInputChange, isProces
             <Send className="w-4 h-4" />
           </button>
         </form>
-        <div className="mt-3 text-[10px] text-center font-medium uppercase tracking-widest text-neutral-300">
+        <div className="mt-3 text-[10px] text-center font-medium uppercase tracking-widest text-zinc-400">
           {voiceSupported ? 'Shift + Enter for new line  ·  Mic for voice' : 'Shift + Enter for new line'}
         </div>
       </div>

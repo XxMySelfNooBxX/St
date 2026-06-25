@@ -1,0 +1,19 @@
+- [ ] Implement Voice Input
+  - [ ] Add microphone button to CommandBar
+  - [ ] Add SpeechRecognition utils
+  - [ ] Add keyboard shortcut listener in App
+- [ ] Implement Dark Mode
+  - [ ] Add theme state and useTheme hook
+  - [ ] Add toggle button to CommandBar
+  - [ ] Update index.css with CSS variables and dark mode classes
+  - [ ] Adjust component classes for dark mode
+- [ ] Accessibility audit integration
+  - [ ] Add a11y utils using axe-core
+  - [ ] Run audit on App mount and display banner
+- [ ] Export features
+  - [ ] Refine iCal export in TimelineBoard
+  - [ ] Add ExportCSVButton component and modal
+  - [ ] Add Export All dropdown in CommandBar
+  - [ ] Implement export utils (downloadICS, exportCSV)
+- [ ] Write tests for voice parsing, theme persistence, export CSV
+- [ ] Manual verification steps

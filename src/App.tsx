@@ -1,4 +1,6 @@
 import { useState, useCallback, useRef, useEffect, lazy, Suspense } from 'react';
+import { useTheme } from './hooks/useTheme';
+import { createVoiceRecognizer } from './utils/voice';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChatInterface } from './components/ChatInterface';
 import { TaskTriageMatrix } from './components/TaskTriageMatrix';
@@ -9,7 +11,11 @@ import { FocusMode } from './components/FocusMode';
 import { CommandBar } from './components/CommandBar';
 import { BurndownChart } from './components/BurndownChart';
 import { WhatIf } from './components/WhatIf';
-import { Message, Task, ExecutionBlock } from './types';
+import { AgentTrace } from './components/AgentTrace';
+import { EnergyCurve } from './components/EnergyCurve';
+import { ConfettiExplosion } from './components/ConfettiExplosion';
+import { OnboardingOverlay } from './components/OnboardingOverlay';
+import { Message, Task, ExecutionBlock, EnergyPoint } from './types';
 
 // Lazy load the 3D chart — it's heavy, only loads when user requests it
 const PanicChart3D = lazy(() => import('./components/PanicChart3D').then(m => ({ default: m.PanicChart3D })));
@@ -73,10 +79,59 @@ export default function App() {
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
   const [focusBlock, setFocusBlock] = useState<{ block: ExecutionBlock; task?: Task } | null>(null);
   const [show3D, setShow3D] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('onboarded'));
+  const [confettiAt, setConfettiAt] = useState<{x: number, y: number} | null>(null);
+  const [energyCurve, setEnergyCurve] = useState<EnergyPoint[]>([]);
+  
+  // Theme handling
+  const { theme, toggleTheme } = useTheme();
+  // Expose to window for CommandBar buttons
+  useEffect(() => {
+    (window as any).toggleTheme = toggleTheme;
+  }, [toggleTheme]);
+
+  // Splash screen timer
+  useEffect(() => {
+    const timer = setTimeout(() => setShowSplash(false), 1500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === '?' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
+        setShowShortcuts(prev => !prev);
+      }
+      if (e.key === 'Escape') {
+        setShowShortcuts(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
   const [isCommandProcessing, setIsCommandProcessing] = useState(false);
   const [completionHistory, setCompletionHistory] = useState<{ remaining: number; timestamp: number }[]>([]);
   const [streak, setStreak] = useState(0);
   const [sessionStart] = useState(() => Date.now());
+  // Voice recognizer setup
+  const voiceRecognizer = useRef<any>(null);
+  useEffect(() => {
+    voiceRecognizer.current = createVoiceRecognizer((transcript) => {
+      // Insert transcript into CommandBar input via a global handler
+      if (typeof (window as any).insertCommandText === 'function') {
+        (window as any).insertCommandText(transcript);
+      }
+    });
+    (window as any).startVoiceListening = () => {
+      voiceRecognizer.current?.start();
+    };
+    // Clean up on unmount
+    return () => {
+      voiceRecognizer.current?.stop();
+    };
+  }, []);
 
   // ─── Session Persistence ─────────────────────────────────────────────────
   // Load from localStorage on first mount
@@ -196,10 +251,29 @@ export default function App() {
 
   // ─── Task completion → auto re-triage ───────────────────────────────────────────
   const handleTaskComplete = useCallback(async (taskId: string) => {
+    let completedTask: Task | undefined;
+    let justCompletedParent = false;
+
     // Optimistically mark as done
-    const updatedTasks = tasks.map(t =>
-      t.id === taskId ? { ...t, status: 'completed' as const } : t
-    );
+    const updatedTasks = tasks.map(t => {
+      if (t.id === taskId) {
+        completedTask = t;
+        justCompletedParent = true;
+        const subtasks = t.subtasks ? t.subtasks.map(s => ({ ...s, status: 'completed' as const })) : undefined;
+        return { ...t, status: 'completed' as const, subtasks };
+      }
+      if (t.subtasks && t.subtasks.some(s => s.id === taskId)) {
+        completedTask = t.subtasks.find(s => s.id === taskId);
+        const newSubtasks = t.subtasks.map(s => s.id === taskId ? { ...s, status: 'completed' as const } : s);
+        if (newSubtasks.every(s => s.status === 'completed')) {
+          justCompletedParent = true;
+          return { ...t, status: 'completed' as const, subtasks: newSubtasks };
+        }
+        return { ...t, subtasks: newSubtasks };
+      }
+      return t;
+    });
+
     setTasks(updatedTasks);
 
     // Track completion in burndown history
@@ -210,7 +284,10 @@ export default function App() {
     ]);
     setStreak(s => s + 1);
 
-    const completedTask = tasks.find(t => t.id === taskId);
+    if (justCompletedParent) {
+      setConfettiAt({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+    }
+
     const remaining = updatedTasks.filter(t => t.status !== 'completed');
 
     // AI confirmation message
@@ -289,6 +366,34 @@ export default function App() {
     }
   }, [schedule, tasks]);
 
+  // ─── Task Decomposition Handler ───────────────────────────────────────────────
+  const handleTaskDecompose = useCallback(async (task: Task) => {
+    try {
+      setIsReTriaging(true);
+      const res = await fetch('/api/decompose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          taskTitle: task.title,
+          estimatedMinutes: task.estimatedMinutes || 60,
+          complexity: 'high',
+        }),
+      });
+      const data = await res.json();
+      if (data.subtasks) {
+        setTasks(prev => prev.map(t => 
+          t.id === task.id 
+            ? { ...t, subtasks: data.subtasks.map((s: any) => ({ ...s, status: 'pending' as const, parentId: task.id, category: task.category })) } 
+            : t
+        ));
+      }
+    } catch {
+      console.error("Decompose failed");
+    } finally {
+      setIsReTriaging(false);
+    }
+  }, []);
+
   // ─── Main send handler with multi-turn history ─────────────────────────────
   const handleSendMessage = async (content: string) => {
     const newUserMsg: Message = { id: crypto.randomUUID(), role: 'user', content };
@@ -341,6 +446,7 @@ export default function App() {
       setSchedule(data.schedule || []);
       setAgentLog(data.agentLog || []);
       setSuggestions(data.suggestions || []);
+      if (data.energyCurve) setEnergyCurve(data.energyCurve);
       setDismissedSuggestions(new Set()); // reset on new brain dump
       setMessages(prev => [...prev, {
         id: crypto.randomUUID(),
@@ -373,7 +479,37 @@ export default function App() {
 
   return (
     <>
-    <div className="flex flex-col md:flex-row h-screen bg-zinc-950 overflow-hidden font-sans text-zinc-100 selection:bg-indigo-500/30 selection:text-white">
+    <AnimatePresence mode="wait">
+      {showSplash ? (
+        <motion.div
+          key="splash"
+          initial={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.5 }}
+          className={theme + " flex items-center justify-center h-screen bg-zinc-950"}
+        >
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 1.1, opacity: 0 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+            className="flex flex-col items-center gap-4"
+          >
+            <div className="w-16 h-16 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shadow-[0_0_40px_rgba(99,102,241,0.2)]">
+              <span className="text-3xl animate-pulse">⚡</span>
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-zinc-100">Last-Minute Life Saver</h1>
+            <div className="text-[10px] text-indigo-400 font-mono tracking-widest uppercase mt-4">Powered by Gemini</div>
+          </motion.div>
+        </motion.div>
+      ) : (
+        <motion.div
+          key="main-app"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5 }}
+          className={theme + " flex flex-col md:flex-row h-screen bg-zinc-950 overflow-hidden font-sans text-zinc-100 selection:bg-indigo-500/30 selection:text-white w-full"}
+        >
 
       {/* Left Panel: Chat + Particle Field */}
       <motion.div
@@ -402,7 +538,47 @@ export default function App() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
       >
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[50%] bg-indigo-500/10 blur-[120px] rounded-full pointer-events-none -z-10" />
+        {/* Animated Background Grid */}
+        <motion.div
+          className="absolute inset-0 bg-grid-pattern pointer-events-none -z-20"
+          animate={{
+            y: [0, 32],
+            x: [0, 32],
+          }}
+          transition={{
+            duration: 8,
+            repeat: Infinity,
+            ease: "linear"
+          }}
+        />
+
+        {/* Animated Background Blobs */}
+        <motion.div
+          className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-500/10 dark:bg-indigo-500/8 blur-[120px] rounded-full pointer-events-none -z-10"
+          animate={{
+            x: [0, 40, -20, 0],
+            y: [0, -30, 20, 0],
+            scale: [1, 1.1, 0.9, 1],
+          }}
+          transition={{
+            duration: 22,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+        <motion.div
+          className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/10 dark:bg-purple-500/5 blur-[120px] rounded-full pointer-events-none -z-10"
+          animate={{
+            x: [0, -40, 20, 0],
+            y: [0, 30, -20, 0],
+            scale: [1, 0.9, 1.1, 1],
+          }}
+          transition={{
+            duration: 28,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
 
         <div className="p-6 md:p-8 lg:p-10 max-w-[1200px] mx-auto space-y-8 flex flex-col min-h-full">
 
@@ -414,9 +590,14 @@ export default function App() {
           >
             <div className="flex items-start justify-between ml-1">
               <div>
-                <h1 className="text-3xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white to-zinc-400 mb-2">
-                  Execution Dashboard
-                </h1>
+                <div className="flex items-center gap-3 mb-2">
+                  <h1 className="text-3xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-zinc-100 to-zinc-400">
+                    Execution Dashboard
+                  </h1>
+                  <span className="hidden sm:inline-block text-[9px] uppercase tracking-widest font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded-full">
+                    Powered by Gemini
+                  </span>
+                </div>
                 <p className="text-zinc-500 font-medium text-sm">
                   Real-time triage and autonomous timeline generation to prevent procrastination and minimize cognitive load.
                 </p>
@@ -434,7 +615,7 @@ export default function App() {
                     }]);
                   }}
                 />
-                <CommandBar onCommand={handleCommand} isProcessing={isCommandProcessing} />
+                <CommandBar onCommand={handleCommand} isProcessing={isCommandProcessing} toggleTheme={toggleTheme} theme={theme} />
               </div>
             </div>
           </motion.header>
@@ -473,32 +654,40 @@ export default function App() {
             )}
           </AnimatePresence>
 
-          {/* Session Stats Bar */}
+          {/* Session Stats & Energy Curve */}
           <motion.section
-            className="shrink-0"
+            className="shrink-0 flex flex-col lg:flex-row gap-4"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.45 }}
           >
-            <StatsBar tasks={tasks} schedule={schedule} />
-            {/* Burndown chart — only shows after first completion */}
-            {completionHistory.length >= 2 && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="mt-3 overflow-hidden"
-              >
-                <BurndownChart
-                  history={[{ remaining: tasks.length, timestamp: sessionStart }, ...completionHistory]}
-                  total={tasks.length}
-                  streak={streak}
-                />
-              </motion.div>
+            <div className="flex-1 flex flex-col">
+              <StatsBar tasks={tasks} schedule={schedule} />
+              {/* Burndown chart — only shows after first completion */}
+              {completionHistory.length >= 2 && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="mt-3 overflow-hidden"
+                >
+                  <BurndownChart
+                    history={[{ remaining: tasks.length, timestamp: sessionStart }, ...completionHistory]}
+                    total={tasks.length}
+                    streak={streak}
+                  />
+                </motion.div>
+              )}
+            </div>
+            
+            {energyCurve.length > 0 && (
+              <div className="w-full lg:w-1/3 flex-shrink-0">
+                <EnergyCurve curve={energyCurve} />
+              </div>
             )}
           </motion.section>
 
           <motion.section
-            className="animate-in fade-in shrink-0"
+            className="shrink-0"
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.55 }}
@@ -547,7 +736,7 @@ export default function App() {
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.25 }}
                 >
-                  <TaskTriageMatrix tasks={tasks} onTaskComplete={handleTaskComplete} />
+                  <TaskTriageMatrix tasks={tasks} onTaskComplete={handleTaskComplete} onTaskDecompose={handleTaskDecompose} />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -572,33 +761,34 @@ export default function App() {
           </motion.section>
 
           {/* Agent Status Bar */}
-          <div className="bg-zinc-900 border border-white/10 text-zinc-300 p-3 rounded-xl flex items-center justify-between shrink-0 mb-4 mt-2">
-            <div className="flex items-center gap-3">
-              <div className="flex gap-1">
-                <div className={`w-1.5 h-1.5 rounded-full ${agentBusy ? 'bg-indigo-400 animate-pulse' : 'bg-zinc-700'}`} />
-                <div className={`w-1.5 h-1.5 rounded-full ${agentBusy ? 'bg-indigo-400 animate-pulse delay-75' : 'bg-zinc-700'}`} />
-                <div className={`w-1.5 h-1.5 rounded-full ${agentBusy ? 'bg-indigo-400 animate-pulse delay-150' : 'bg-zinc-700'}`} />
-              </div>
-              <span className="text-[11px] font-mono opacity-80 uppercase tracking-tighter">
-                {agentBusy
-                  ? `Agent: ${agentStateLabel || 'Working...'}`
-                  : agentLog.length > 0
-                    ? `Last run: ${agentLog.length} tool calls`
-                    : 'Agent Status: Idle'}
-              </span>
-            </div>
-            <div className="text-[10px] opacity-60 flex gap-4 font-mono overflow-hidden">
-              {!agentBusy && agentLog.length > 0 && (
-                <span className="hidden sm:inline text-emerald-500/70">
-                  ✓ {agentLog.filter(l => l.includes('✓')).length} tools completed
-                </span>
-              )}
-            </div>
-          </div>
+          <AgentTrace agentLog={agentLog} isProcessing={agentBusy} processingState={agentStateLabel} />
 
         </div>
       </motion.div>
-    </div>
+    </motion.div>
+      )}
+    </AnimatePresence>
+
+    {/* Confetti */}
+    {confettiAt && (
+      <ConfettiExplosion 
+        x={confettiAt.x} 
+        y={confettiAt.y} 
+        onComplete={() => setConfettiAt(null)} 
+      />
+    )}
+
+    {/* Onboarding Overlay */}
+    <AnimatePresence>
+      {showOnboarding && !showSplash && (
+        <OnboardingOverlay 
+          onDismiss={() => {
+            setShowOnboarding(false);
+            localStorage.setItem('onboarded', 'true');
+          }} 
+        />
+      )}
+    </AnimatePresence>
 
     {/* Focus Mode overlay */}
     <AnimatePresence>
@@ -612,6 +802,50 @@ export default function App() {
             setFocusBlock(null);
           }}
         />
+      )}
+    </AnimatePresence>
+
+    {/* Keyboard Shortcuts Overlay */}
+    <AnimatePresence>
+      {showShortcuts && (
+        <motion.div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-sm"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={() => setShowShortcuts(false)}
+        >
+          <motion.div
+            className="bg-zinc-900 border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl glass-panel"
+            initial={{ scale: 0.95, y: 10, opacity: 0 }}
+            animate={{ scale: 1, y: 0, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-zinc-100">Keyboard Shortcuts</h3>
+              <button onClick={() => setShowShortcuts(false)} className="text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200">✕</button>
+            </div>
+            <div className="space-y-3">
+              <div className="flex justify-between text-sm items-center">
+                <span className="text-zinc-400">Toggle Shortcuts</span>
+                <kbd className="px-2 py-1 bg-zinc-800 rounded border border-white/10 font-mono text-xs text-zinc-300">?</kbd>
+              </div>
+              <div className="flex justify-between text-sm items-center">
+                <span className="text-zinc-400">Send Message</span>
+                <kbd className="px-2 py-1 bg-zinc-800 rounded border border-white/10 font-mono text-xs text-zinc-300">Enter</kbd>
+              </div>
+              <div className="flex justify-between text-sm items-center">
+                <span className="text-zinc-400">New Line</span>
+                <kbd className="px-2 py-1 bg-zinc-800 rounded border border-white/10 font-mono text-xs text-zinc-300">Shift + Enter</kbd>
+              </div>
+              <div className="flex justify-between text-sm items-center">
+                <span className="text-zinc-400">Close Modals</span>
+                <kbd className="px-2 py-1 bg-zinc-800 rounded border border-white/10 font-mono text-xs text-zinc-300">Esc</kbd>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
       )}
     </AnimatePresence>
     </>
