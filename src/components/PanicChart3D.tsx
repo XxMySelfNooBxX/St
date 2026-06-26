@@ -1,6 +1,6 @@
 import { Suspense, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Text, Grid, Float, Environment } from '@react-three/drei';
+import { OrbitControls, Text, Grid, Float, Environment, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
 import { Task } from '../types';
 
@@ -42,14 +42,20 @@ function PanicBar({ task, index, total, isAtRisk }: {
         position={[0, 0, 0]}
         scale={[1, 0.001, 1]}
         castShadow
+        receiveShadow
       >
         <boxGeometry args={[1.1, targetHeight, 1.1]} />
-        <meshStandardMaterial
+        <meshPhysicalMaterial
           color={color}
           emissive={color}
-          emissiveIntensity={isAtRisk ? 0.5 : 0.2}
-          roughness={0.25}
-          metalness={0.1}
+          emissiveIntensity={isAtRisk ? 0.4 : 0.1}
+          roughness={0.15}
+          metalness={0.3}
+          clearcoat={1.0}
+          clearcoatRoughness={0.1}
+          transmission={0.4}
+          thickness={1.5}
+          ior={1.4}
           transparent
           opacity={task.status === 'completed' ? 0.3 : 1}
         />
@@ -130,10 +136,10 @@ function Scene({ tasks }: { tasks: Task[] }) {
   return (
     <>
       {/* Lighting */}
-      <ambientLight intensity={0.4} />
-      <directionalLight position={[5, 8, 5]} intensity={1.2} castShadow />
-      <pointLight position={[-4, 4, -4]} intensity={0.6} color="#6366f1" />
-      <pointLight position={[4, 2, 4]} intensity={0.4} color="#ef4444" />
+      <ambientLight intensity={0.6} />
+      <directionalLight position={[5, 10, 5]} intensity={1.5} castShadow shadow-mapSize={[1024, 1024]} />
+      <pointLight position={[-4, 4, -4]} intensity={0.8} color="#818cf8" />
+      <pointLight position={[4, 2, 4]} intensity={0.5} color="#fb7185" />
 
       {/* Dark floor grid */}
       <Grid
@@ -148,6 +154,17 @@ function Scene({ tasks }: { tasks: Task[] }) {
         fadeDistance={18}
         fadeStrength={1}
         infiniteGrid
+      />
+
+      {/* High-quality contact shadows for realistic grounding */}
+      <ContactShadows
+        position={[0, 0, 0]}
+        opacity={0.7}
+        scale={20}
+        blur={2.5}
+        far={4.5}
+        resolution={1024}
+        color="#000000"
       />
 
       {/* Bars */}
@@ -181,7 +198,7 @@ function Scene({ tasks }: { tasks: Task[] }) {
         autoRotate={pending.filter(t => t.atRisk).length > 0}
         autoRotateSpeed={0.6}
       />
-      <Environment preset="night" />
+      <Environment preset="city" />
     </>
   );
 }
