@@ -1,31 +1,30 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Zap } from 'lucide-react';
-import { ChaosParticles, AnimationPhase } from './ChaosParticles';
 
 interface SplashAnimationProps {
   onComplete: () => void;
 }
 
 export function SplashAnimation({ onComplete }: SplashAnimationProps) {
-  const [phase, setPhase] = useState<AnimationPhase>('chaos');
+  const [phase, setPhase] = useState<'hidden' | 'logo' | 'text' | 'done'>('hidden');
 
   useEffect(() => {
-    // 0.0s - 0.5s: Chaos
+    // 0.0s - 0.5s: Complete black screen for dramatic pause
     const t1 = setTimeout(() => {
-      setPhase('compression');
+      setPhase('logo');
     }, 500);
 
-    // 0.5s - 1.2s: Compression Snap
+    // 0.5s - 2.0s: Slow, elegant logo reveal
     const t2 = setTimeout(() => {
-      setPhase('reveal');
-    }, 1200);
+      setPhase('text');
+    }, 2000);
 
-    // 1.2s - 2.0s: Reveal Brand
+    // 2.0s - 4.0s: Text fade in and breathe
     const t3 = setTimeout(() => {
       setPhase('done');
       onComplete();
-    }, 2200);
+    }, 4500);
 
     return () => {
       clearTimeout(t1);
@@ -34,98 +33,67 @@ export function SplashAnimation({ onComplete }: SplashAnimationProps) {
     };
   }, [onComplete]);
 
-  const title = "Last-Minute Life Saver";
-  const letters = title.split('');
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-zinc-950 font-sans">
-      {/* Background Particles Layer */}
-      <ChaosParticles phase={phase} />
+    <motion.div 
+      initial={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 1.2, ease: "easeInOut" }}
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-[#000000] font-sans"
+    >
+      <div className="relative z-10 flex flex-col items-center justify-center">
+        
+        {/* Apple-style minimalist logo reveal */}
+        <AnimatePresence>
+          {(phase === 'logo' || phase === 'text' || phase === 'done') && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, filter: 'blur(20px)' }}
+              animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+              transition={{ 
+                duration: 2.0, 
+                ease: [0.25, 0.1, 0.25, 1] // Apple-like smooth easing
+              }}
+              className="flex items-center justify-center w-24 h-24 mb-8"
+            >
+              <Zap className="w-12 h-12 text-zinc-100 fill-zinc-100/10" strokeWidth={1} />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      {/* Foreground Brand Reveal */}
-      <div className="relative z-10 flex flex-col items-center">
-        {/* Bolt Icon Container (Acts as the gravity well and mask) */}
-        <motion.div
-          initial={{ scale: 0, opacity: 0, rotate: -45 }}
-          animate={
-            phase === 'chaos' ? { scale: 0, opacity: 0 } :
-            phase === 'compression' ? { scale: [0, 1.5, 1], opacity: 1, rotate: [45, 0] } :
-            { scale: 1, opacity: 1, rotate: 0 }
-          }
-          transition={{
-            type: "spring",
-            stiffness: 200,
-            damping: 15,
-            mass: 0.5
-          }}
-          className="relative flex items-center justify-center w-24 h-24 mb-6 rounded-3xl bg-indigo-500/20 shadow-[0_0_80px_rgba(99,102,241,0.5)] border border-indigo-400/30 overflow-hidden"
-        >
-          {/* Intense glow burst behind the bolt */}
-          <motion.div
-            animate={
-              phase === 'compression' ? { opacity: [0, 1, 0], scale: [0.5, 2] } : { opacity: 0 }
-            }
-            transition={{ duration: 0.6, ease: "easeOut" }}
-            className="absolute inset-0 bg-white/40 blur-md rounded-full"
-          />
-          <motion.div
-            animate={
-              phase === 'compression' ? { scale: [0.8, 1.2, 1], filter: ['brightness(1)', 'brightness(2)', 'brightness(1)'] } : {}
-            }
-            transition={{ duration: 0.5 }}
-          >
-            <Zap className="w-12 h-12 text-indigo-400 fill-indigo-400/50" />
-          </motion.div>
-        </motion.div>
-
-        {/* Split Text Reveal */}
-        <div className="flex overflow-hidden h-12 items-center justify-center">
+        {/* Apple-style typographic fade */}
+        <div className="flex overflow-hidden h-16 items-center justify-center">
           <AnimatePresence>
-            {(phase === 'reveal' || phase === 'done') && letters.map((letter, i) => (
-              <motion.span
-                key={i}
-                initial={{ y: 50, opacity: 0, filter: 'blur(4px)' }}
-                animate={{ y: 0, opacity: 1, filter: 'blur(0px)' }}
-                transition={{
-                  duration: 0.4,
-                  delay: i * 0.03, // Staggered reveal
-                  ease: [0.25, 1, 0.5, 1] // Custom cubic-bezier out
+            {(phase === 'text' || phase === 'done') && (
+              <motion.h1
+                initial={{ opacity: 0, y: 10, filter: 'blur(10px)', letterSpacing: '0em' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)', letterSpacing: '0.05em' }}
+                transition={{ 
+                  duration: 2.5, 
+                  ease: [0.25, 0.1, 0.25, 1],
+                  delay: 0.2
                 }}
-                className={`text-3xl font-bold tracking-tight text-zinc-100 ${letter === ' ' ? 'w-2' : ''}`}
+                className="text-2xl font-light tracking-wide text-zinc-200"
               >
-                {letter}
-              </motion.span>
-            ))}
+                Last-Minute Life Saver
+              </motion.h1>
+            )}
           </AnimatePresence>
         </div>
         
-        {/* Subtitle pulse */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={phase === 'reveal' ? { opacity: 1, y: 0 } : { opacity: 0 }}
-          transition={{ duration: 0.6, delay: 0.6 }}
-          className="text-[10px] text-indigo-400 font-mono tracking-widest uppercase mt-4"
-        >
-          Powered by Gemini
-        </motion.div>
+        {/* Subtle Subtitle */}
+        <AnimatePresence>
+          {(phase === 'text' || phase === 'done') && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.4 }}
+              transition={{ duration: 2.0, delay: 1.5 }}
+              className="text-[9px] text-zinc-500 font-mono tracking-widest uppercase mt-4"
+            >
+              Powered by Gemini
+            </motion.div>
+          )}
+        </AnimatePresence>
+
       </div>
-      
-      {/* Chromatic aberration overlay on snap */}
-      <motion.div
-        className="absolute inset-0 pointer-events-none mix-blend-screen"
-        initial={{ opacity: 0 }}
-        animate={
-          phase === 'compression' ? { 
-            opacity: [0, 0.15, 0], 
-            boxShadow: [
-              'inset 0 0 0px rgba(255,0,0,0)',
-              'inset 20px 0 100px rgba(255,0,0,0.5), inset -20px 0 100px rgba(0,255,255,0.5)',
-              'inset 0 0 0px rgba(255,0,0,0)'
-            ] 
-          } : { opacity: 0 }
-        }
-        transition={{ duration: 0.5, ease: "easeOut" }}
-      />
-    </div>
+    </motion.div>
   );
 }

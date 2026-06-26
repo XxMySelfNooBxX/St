@@ -480,9 +480,9 @@ export default function App() {
       ) : (
         <motion.div
           key="main-app"
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ type: "spring", stiffness: 300, damping: 25, mass: 1, duration: 0.5 }}
+          initial={{ opacity: 0, filter: 'blur(10px)', scale: 1.02 }}
+          animate={{ opacity: 1, filter: 'blur(0px)', scale: 1 }}
+          transition={{ duration: 1.5, ease: [0.25, 0.1, 0.25, 1] }}
           className={theme + " flex flex-col md:flex-row h-screen bg-transparent overflow-hidden font-sans text-zinc-100 selection:bg-indigo-500/30 selection:text-white w-full"}
         >
           <AnimatedBackground />
