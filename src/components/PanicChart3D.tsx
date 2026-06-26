@@ -90,13 +90,13 @@ function PanicBar({ task, index, total, isAtRisk }: {
         {task.panicScore ?? 0}
       </Text>
 
-      {/* Task short title below floor */}
+      {/* Task short title in front of bar */}
       <Text
-        position={[0, -0.18, 0]}
+        position={[0, 0.05, 0.8]}
         fontSize={0.18}
-        color="#71717a"
+        color="#f4f4f5"
         anchorX="center"
-        anchorY="top"
+        anchorY="bottom"
         maxWidth={1.5}
         textAlign="center"
       >
@@ -105,7 +105,7 @@ function PanicBar({ task, index, total, isAtRisk }: {
 
       {/* Category badge */}
       <Text
-        position={[0, -0.48, 0]}
+        position={[0, -0.15, 0.8]}
         fontSize={0.14}
         color={color}
         anchorX="center"
