@@ -541,7 +541,7 @@ export default function App() {
 
         {/* Animated Background Blobs */}
         <motion.div
-          className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-500/10 dark:bg-indigo-500/8 blur-[120px] rounded-full pointer-events-none -z-10"
+          className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-300/40 dark:bg-indigo-500/8 blur-[120px] rounded-full pointer-events-none -z-10"
           animate={{
             x: [0, 40, -20, 0],
             y: [0, -30, 20, 0],
@@ -554,7 +554,7 @@ export default function App() {
           }}
         />
         <motion.div
-          className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/10 dark:bg-purple-500/5 blur-[120px] rounded-full pointer-events-none -z-10"
+          className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-300/40 dark:bg-purple-500/5 blur-[120px] rounded-full pointer-events-none -z-10"
           animate={{
             x: [0, -40, 20, 0],
             y: [0, 30, -20, 0],
@@ -578,10 +578,10 @@ export default function App() {
             <div className="flex items-start justify-between ml-1">
               <div>
                 <div className="flex items-center gap-3 mb-2">
-                  <h1 className="text-3xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-zinc-100 to-zinc-400">
+                  <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-zinc-100 flex items-center gap-3">
                     Execution Dashboard
                   </h1>
-                  <span className="hidden sm:inline-block text-[9px] uppercase tracking-widest font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded-full">
+                  <span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-full border border-indigo-500/20 flex items-center gap-1.5">
                     Powered by Gemini
                   </span>
                 </div>
@@ -627,7 +627,7 @@ export default function App() {
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.85 }}
                       transition={{ delay: i * 0.08 }}
-                      className="flex items-start gap-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-[11px] px-3 py-2 rounded-lg max-w-sm"
+                      className="flex items-start gap-2 bg-indigo-100 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 text-indigo-700 dark:text-indigo-300 text-[11px] px-3 py-2 rounded-lg max-w-sm shadow-sm dark:shadow-none"
                     >
                       <span className="mt-0.5 shrink-0">💡</span>
                       <span className="flex-1 leading-snug">{tip}</span>
