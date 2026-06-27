@@ -76,7 +76,7 @@ export function SplashAnimation({ onComplete }: SplashAnimationProps) {
               }}
               className="flex items-center justify-center w-24 h-24 mb-8"
             >
-              <Zap className="w-12 h-12 text-zinc-100 fill-zinc-100/10" strokeWidth={1} />
+              <Zap className="w-12 h-12 text-white/90 fill-white/10" strokeWidth={1} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -93,7 +93,7 @@ export function SplashAnimation({ onComplete }: SplashAnimationProps) {
                   ease: [0.25, 0.1, 0.25, 1],
                   delay: 0.2
                 }}
-                className="text-2xl font-light tracking-wide text-zinc-200"
+                className="text-2xl font-light tracking-wide text-white/90"
               >
                 Last-Minute Life Saver
               </motion.h1>
@@ -108,7 +108,7 @@ export function SplashAnimation({ onComplete }: SplashAnimationProps) {
               initial={{ opacity: 0, y: 5 }}
               animate={{ opacity: 0.8, y: 0 }}
               transition={{ duration: 2.0, delay: 0.8 }}
-              className="text-[10px] text-zinc-400 font-mono tracking-widest uppercase mt-4"
+              className="text-[10px] text-white/50 font-mono tracking-widest uppercase mt-4"
             >
               Powered by Gemini
             </motion.div>

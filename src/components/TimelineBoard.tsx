@@ -81,22 +81,22 @@ export function TimelineBoard({ schedule, tasks, onStartFocus }: {
             if (block.type === 'work') {
               if (task?.category === 'Urgent & Critical') {
                 blockClasses = isAtRisk
-                  ? 'bg-red-500/15 border-red-500/60 shadow-[0_0_12px_rgba(239,68,68,0.15)]'
-                  : 'bg-red-500/10 border-red-500/50';
-                titleClasses = 'text-red-400';
+                  ? 'bg-red-100 dark:bg-red-500/15 border-red-400 dark:border-red-500/60 shadow-[0_0_12px_rgba(239,68,68,0.15)]'
+                  : 'bg-red-50 dark:bg-red-500/10 border-red-300 dark:border-red-500/50';
+                titleClasses = 'text-red-700 dark:text-red-400';
                 dotClass = isAtRisk ? 'bg-red-500' : 'bg-red-600';
               } else if (task?.category === 'High Dependency') {
-                blockClasses = 'bg-amber-500/10 border-amber-500/50';
-                titleClasses = 'text-amber-400';
+                blockClasses = 'bg-amber-100 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/50';
+                titleClasses = 'text-amber-700 dark:text-amber-400';
                 dotClass = 'bg-amber-500';
               } else {
-                blockClasses = 'bg-indigo-500/10 border-indigo-500/50';
-                titleClasses = 'text-indigo-400';
+                blockClasses = 'bg-indigo-100 dark:bg-indigo-500/10 border-indigo-300 dark:border-indigo-500/50';
+                titleClasses = 'text-indigo-700 dark:text-indigo-400';
                 dotClass = 'bg-indigo-500';
               }
             } else if (block.type === 'break') {
-              blockClasses = 'bg-emerald-500/5 border-emerald-500/20';
-              titleClasses = 'text-emerald-500';
+              blockClasses = 'bg-emerald-100 dark:bg-emerald-500/5 border-emerald-300 dark:border-emerald-500/20';
+              titleClasses = 'text-emerald-700 dark:text-emerald-500';
               dotClass = 'bg-emerald-600';
             }
 
