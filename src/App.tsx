@@ -169,6 +169,7 @@ export default function App() {
 
   // ─── Proactive check-in timer (every 25 mins) ───────────────────────────
   const checkInTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastCheckInTimeRef = useRef<number>(0);
   const tasksRef = useRef(tasks);
   const scheduleRef = useRef(schedule);
   const setMessagesRef = useRef(setMessages);
@@ -180,6 +181,10 @@ export default function App() {
     const INTERVAL_MS = 25 * 60 * 1000; // 25 minutes
 
     const runCheckIn = async () => {
+      // Prevent spamming (e.g., if browser queues intervals during sleep)
+      if (Date.now() - lastCheckInTimeRef.current < 60000) return;
+      lastCheckInTimeRef.current = Date.now();
+
       const currentTasks = tasksRef.current;
       const currentSchedule = scheduleRef.current;
       const pending = currentTasks.filter(t => t.status !== 'completed');
@@ -198,13 +203,19 @@ export default function App() {
         ? currentTasks.find(t => t.id === activeBlock.taskId)
         : pending[0];
 
+      let elapsedMinutes = 25;
+      if (activeBlock?.startTime) {
+        const startTimestamp = new Date(activeBlock.startTime).getTime();
+        elapsedMinutes = Math.max(1, Math.floor((now.getTime() - startTimestamp) / 60000));
+      }
+
       try {
         const res = await fetch('/api/checkin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             currentTaskTitle: activeTask?.title ?? 'your current task',
-            elapsedMinutes: 25,
+            elapsedMinutes: elapsedMinutes,
             remainingTasksCount: pending.length,
             currentTime: now.toISOString(),
           }),
