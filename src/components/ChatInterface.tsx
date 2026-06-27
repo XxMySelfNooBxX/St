@@ -201,7 +201,7 @@ export function ChatInterface({ messages, onSendMessage, onInputChange, isProces
               isPanicking ? 'You\'re panicking — just type everything, I\'ll sort it out...' :
               'Type your frantic thoughts or tap the mic...'
             }
-            className={`w-full h-24 p-3 pr-20 text-sm border ${borderColor} rounded-xl bg-zinc-900 resize-none focus:outline-none focus:ring-1 focus:ring-zinc-700 transition-all placeholder:text-zinc-600 text-zinc-100 ${isRecording ? 'border-red-500/40 bg-red-950/10' : ''}`}
+            className={`w-full min-h-[110px] p-4 pr-24 text-[15px] leading-relaxed border ${borderColor} rounded-xl bg-zinc-900/80 resize-none focus:outline-none focus:ring-1 focus:ring-zinc-600 transition-all placeholder:text-zinc-600 text-zinc-100 shadow-inner ${isRecording ? 'border-red-500/40 bg-red-950/10' : ''}`}
           />
 
           {/* Mic Button */}
@@ -211,7 +211,7 @@ export function ChatInterface({ messages, onSendMessage, onInputChange, isProces
               onClick={isRecording ? stopRecording : startRecording}
               disabled={isProcessing}
               title={isRecording ? 'Stop recording' : 'Voice input'}
-              className={`absolute right-12 bottom-3 p-2 border rounded-lg text-xs font-semibold transition-all ${
+              className={`absolute right-14 bottom-4 p-2.5 border rounded-lg text-xs font-semibold transition-all ${
                 isRecording
                   ? 'bg-red-600 border-red-500/40 text-white shadow-[0_0_16px_rgba(239,68,68,0.4)] animate-pulse'
                   : 'bg-zinc-800 border-white/10 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100'
@@ -225,7 +225,7 @@ export function ChatInterface({ messages, onSendMessage, onInputChange, isProces
           <button
             type="submit"
             disabled={sendDisabled}
-            className={`absolute right-3 bottom-3 p-2 border border-white/10 text-zinc-100 rounded-lg text-xs font-semibold transition-all ${
+            className={`absolute right-4 bottom-4 p-2.5 border border-white/10 text-zinc-100 rounded-lg text-xs font-semibold transition-all ${
               isPanicking && !sendDisabled
                 ? 'bg-red-600 hover:bg-red-500 border-red-500/40 shadow-[0_0_16px_rgba(239,68,68,0.4)] animate-pulse'
                 : 'bg-zinc-800 hover:bg-zinc-700'

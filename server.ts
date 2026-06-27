@@ -456,7 +456,17 @@ const TOOL_DECLARATIONS = [
 function localTriageFallback(text: string, currentTime: string): any {
   console.log("[FALLBACK] Running local heuristic triage parser...");
   const now = new Date(currentTime);
-  const lines = text.split(/[.\n]+/).map(s => s.trim()).filter(s => s.length > 8);
+  
+  // Smarter split: don't just split on periods. Add newlines before conjunctions, then split by newline.
+  let processedText = text.replace(/([.?!])\s+(also|oh|then|and|but)/gi, "$1\n$2");
+  processedText = processedText.replace(/,\s+(and|also)\s+(?=I need|I have|quickly|eventually)/gi, ",\n$1 ");
+  
+  // If still no newlines and it's a long paragraph, just split by period to be safe
+  if (!processedText.includes('\n') && processedText.length > 100) {
+    processedText = processedText.replace(/\.\s+/g, ".\n");
+  }
+
+  const lines = processedText.split(/\n+/).map(s => s.trim().replace(/^[-\*•]\s*/, '')).filter(s => s.length > 8);
 
   const rawTasks = lines.length > 0 ? lines.slice(0, 5) : ["CS assignment Sprint", "Group project prep", "Read economics chapter"];
 
